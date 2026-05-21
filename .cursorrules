@@ -1,0 +1,190 @@
+################################################################################
+project:
+  name: Feedback Analyzer
+  language: python
+  python_version: "3.11+"
+  root: src/python
+  entrypoint: app.py
+  docs:
+    - README.md
+    - project_purpose.md
+  exclude_from_context:
+    - "Cursor AI_퀴즈 - 문제.docx"
+    - "src/python/.venv/**"
+    - "**/__pycache__/**"
+
+################################################################################
+code_style:
+  formatter: black
+  import_sort: isort
+  type_hints: required
+  naming:
+    modules_functions_variables: snake_case
+    classes: PascalCase
+    constants: UPPER_SNAKE_CASE
+  line_length: 88
+
+################################################################################
+architecture:
+  pattern: dual-track-bce
+  layers:
+    boundary:
+      role: HTTP, HTML presenter, CSV upload/download, request/response DTO
+      path: boundary/
+    control:
+      role: Use-case orchestration, command handling, error-to-user-message mapping
+      path: control/
+    entity:
+      role: Domain model, classifiers, filters, invariants, ports (interfaces)
+      path: entity/
+  dependency_direction:
+    - boundary -> control -> entity
+    - infrastructure implements entity ports only
+    - entity must_not_import: [flask, boundary, control]
+  infrastructure:
+    path: infrastructure/
+    implements: entity.ports
+
+################################################################################
+tdd_rules:
+  red_phase:
+    description: >
+      Feedback Analyzer(src/python)의 Domain·Control에 대해 실패하는 pytest를 먼저 작성한다.
+      감정 분류·카테고리 분류·필터·집계·CSV 입출력 요구를 테스트로 고정하고 production 구현은 추가하지 않는다.
+    rules:
+      - "피드백 입력: 수동 텍스트 trim, 공백-only 미추가, 멀티라인 1건 보존을 RED로 명시한다"
+      - "CSV 업로드: UTF-8 BOM, 헤더 스킵, 빈 행·text 컬럼 누락 정책을 tests에 고정한다"
+      - "빈 목록·0건: 피드백 0건 집계, 필터 0건 warning, 다운로드 스냅샷 없음 정책을 테스트한다"
+      - "감정 분류: 긍정/부정/중립 단일 규칙; Analyze와 Filter가 동일 결과(INV-SENT-002) RED 추가"
+      - "중립 필터: 「중립」 선택 시 중립 분류만 반환(INV-SENT-003) 회귀 테스트를 먼저 둔다"
+      - "카테고리: main/sub 키워드 정책과 UI 카테고리 필터 일치 여부를 RED로 문서화한다"
+      - "집계: 긍정+중립+부정 건수 합 = 대상 피드백 수(INV-COUNT-002) assert"
+      - "출력: export CSV(BOM, text 헤더), PageViewModel(escape·level별 log) 최소 케이스씩 RED"
+      - "미션7(선택): test_feedback_trend.csv·KeywordRule File DB는 @pytest.mark.mission7로 분리"
+      - "각 테스트에 보호 Invariant 이름(한 줄, INV-*)을 docstring 또는 주석으로 적는다"
+      - "Flask app.py HTML은 통합 소수만; 핵심은 domain/control 단위 RED"
+    must_not:
+      - "RED 단계에서 테스트를 통과시키기 위한 domain/control 구현 추가"
+      - "constants.SENTIMENT_KEYWORDS vs filters.S_KEYWORDS 이중 규칙을 테스트에 굳히기"
+      - "fil_data·global_sent·Session 클래스 변수에 의존하는 통합-only 테스트만 추가"
+      - "미구현 API를 skip/xfail로 영구 무력화"
+      - "Cursor AI_퀴즈 - 문제.docx 내용을 테스트 요구에 반영"
+
+  green_phase:
+    description: >
+      RED를 최소 구현으로 통과시킨다.
+      감정·카테고리·필터 로직은 Domain(SentimentClassifier, FeedbackFilter)에만 두고 app.py는 Boundary로 유지한다.
+    rules:
+      - "RED 한 그룹씩 GREEN; 중립 필터 버그는 SentimentClassifier 단일화로 해결"
+      - "text_analyzer와 filters의 _contains_any 중복 제거를 GREEN 범위에 포함 가능"
+      - "필터 결과는 FilteredResultStore(Port)에 저장; fil_data 전역 제거 방향"
+      - "CSV 다운로드는 마지막 필터 스냅샷과 행·순서 일치(INV-CSV-OUT-003)"
+      - "업로드 실패·처리 오류는 사용자 메시지로만; 세션 피드백 목록 불변"
+      - "PageLogSink: warning/error level 설정에 따라 페이지 표시 여부 구현(미션3)"
+      - "coverage 90% 목표: domain·control 위주; pytest src/python에서 실행"
+      - "GREEN 후 변경 범위 pytest 전체 통과 확인"
+    must_not:
+      - "assert 완화·키워드 목록 임의 축소로 GREEN 맞추기"
+      - "app.py render_page 또는 라우트에 분류·필터 비즈니스 로직 추가"
+      - "HTML만 패치하고 Domain 분류기는 그대로 두기"
+      - "REFACTOR(디렉터리 분리·대규모 rename)를 GREEN 전에 수행"
+
+  refactor_phase:
+    description: >
+      pytest 전부 통과 상태에서 구조·이름·중복만 개선한다.
+      Dual-Track(Boundary) + BCE(Control/Entity)로 src/python을 정리한다.
+    rules:
+      - "render_page → Presenter/ViewModel; 라우트 → UseCase(Control) 추출"
+      - "constants 키워드 → KeywordRule + KeywordRuleRepository(Port); 미션7 File DB"
+      - "Session 클래스 변수 → FeedbackRepository 인스턴스·요청 스코프"
+      - "file_handler.py Lava Flow 제거 또는 ExportFiltered Port로 흡수"
+      - "네이밍: fil/sent/kw/fil_data/global_sent 제거(미션4)"
+      - "TrendAggregator + test_feedback_trend.csv는 mission7 마커 테스트 유지"
+      - "커밋은 사용자 요청 시에만; FEAT/REFACTOR 메시지 구분"
+    must_not:
+      - "리팩터 중 Trend·File DB 등 미션7 신규 기능 추가(기능은 GREEN 사이클)"
+      - "테스트 삭제·통합 축소로 coverage 90% 회피"
+      - "INV-SENT-002/003을 깨는 분류 규칙 이중화 재도입"
+      - "동작 변경을 refactor로 밀어 넣기; 동작 변경 시 RED부터 재시작"
+      - "src/python/.venv 커밋·규칙 반영"
+
+################################################################################
+testing:
+  framework: pytest
+  pattern: AAA
+  aaa:
+    arrange: given/fixture로 입력·의존성 준비
+    act: 단일 호출(UseCase 또는 Domain Service)
+    assert: 결과·예외·불변식(INV-*)만 검증
+  fixtures:
+    location: tests/conftest.py
+    rules:
+      - "Repository·Port는 in-memory fake 또는 mock"
+      - "Flask client는 tests/boundary/ 통합에만 사용"
+      - "키워드 표본은 constants/KeywordRule fixture로 공유"
+      - "mission7 전용 데이터는 test_feedback_trend.csv fixture"
+  layout:
+    - tests/entity/
+    - tests/control/
+    - tests/boundary/
+  coverage:
+    tool: pytest-cov
+    minimum: 0.90
+    focus: [entity, control]
+    omit: [".venv/**", "app.py if integration-only"]
+  markers:
+    mission7: trend visualization and file-db keyword rules
+
+################################################################################
+forbidden:
+  print_debug:
+    pattern: 'print(...) for debugging in src/python (except CLI __main__ banner)'
+    reason: unstructured logs bypass Logger/PageLogSink and pollute production paths
+    alternative: Logger.log_info|log_warning|log_error or logging module with level
+  magic_numbers:
+    pattern: "numeric/string literals in business logic without named constant"
+    reason: shotgun surgery and unclear domain meaning (e.g. sentiment thresholds)
+    alternative: entity/constants.py or KeywordRule configuration via Port
+  bare_except:
+    pattern: "except: or except Exception: pass without re-raise or user message"
+    reason: swallows failures; breaks INV and hides filter/classifier bugs
+    alternative: specific exceptions; map to Control error DTO for boundary display
+  global_state:
+    pattern: "module-level fil_data, global_sent, global_kw, Session class mutable lists"
+    reason: hidden coupling between routes; untestable order-dependent behavior
+    alternative: FilteredResultStore, FeedbackRepository, request-scoped instance
+  missing_type_hints:
+    pattern: "def or public methods without parameter and return annotations"
+    reason: violates code_style; weakens refactor safety under 90% coverage goal
+    alternative: full hints; use list[str], dict[str, int] | None on Python 3.11+
+
+################################################################################
+file_structure:
+  tree: |
+    src/python/
+    ├── app.py                 # boundary: Flask entry (thin)
+    ├── boundary/              # Track A: routes, presenters, web DTO
+    ├── control/               # BCE Control: use cases
+    ├── entity/                # BCE Entity: models, services, ports
+    ├── infrastructure/        # Port adapters (session, file db, csv, log sink)
+    ├── requirements.txt
+    └── .venv/                 # local only, not committed
+    tests/
+    ├── conftest.py            # shared fixtures
+    ├── entity/                # classifier, filter, invariants
+    ├── control/               # use-case orchestration
+    └── boundary/              # flask client, presenter snapshots
+
+################################################################################
+ai_behavior:
+  layer_violation: forbidden
+  test_first: true
+  refactor_after_green: true
+  rules:
+    - "entity에 Flask, HTML, print 디버그 금지"
+    - "신규 기능은 RED pytest 추가 후 최소 GREEN"
+    - "구조 분리·rename·extract는 refactor_phase 또는 전부 green 이후"
+    - "사용자 명시 없이 커밋·push 금지"
+    - "Cursor AI_퀴즈 - 문제.docx 분석·인용 금지"
+  on_user_impl_request:
+    - "현재 TDD 단계(RED|GREEN|REFACTOR) 확인 후 해당 must_not 준수"
