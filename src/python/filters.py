@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 from typing import List
+
+from constants import CATEGORY_KEYWORDS, SENTIMENT_KEYWORDS
 from feedback import Feedback
-from constants import CATEGORY_KEYWORDS
 
 S_KEYWORDS = {
     "긍정": [
@@ -26,27 +27,27 @@ def _contains_any(text: str, keywords: List[str]) -> bool:
     return any(kw in text for kw in keywords)
 
 
+def _label_sentiment(text: str) -> str:
+    """긍정 → 부정 → 중립 — TextAnalyzer·INV-SENT-002 단일 규칙."""
+    if _contains_any(text, SENTIMENT_KEYWORDS["긍정"]):
+        return "긍정"
+    if _contains_any(text, SENTIMENT_KEYWORDS["부정"]):
+        return "부정"
+    return "중립"
+
+
 def filter_feedbacks(
     data_list: List[Feedback],
     sentiment_filter: str,
     keyword_filter: str,
 ) -> List[Feedback]:
-    # Sentiment filtering
+    # Sentiment filtering (INV-SENT-002 / INV-SENT-003: SENTIMENT_KEYWORDS only)
     if sentiment_filter != "전체":
-        tmp_filtered = []
-        for item in data_list:
-            txt = item.text
-            if _contains_any(txt, S_KEYWORDS["긍정"]):
-                current_sentiment = "긍정"
-            elif _contains_any(txt, S_KEYWORDS["부정"]):
-                current_sentiment = "부정"
-            elif _contains_any(txt, S_KEYWORDS["중립"]):
-                current_sentiment = "중립"
-            else:
-                current_sentiment = "중립"
-
-            if current_sentiment == sentiment_filter:
-                tmp_filtered.append(item)
+        tmp_filtered = [
+            item
+            for item in data_list
+            if _label_sentiment(item.text) == sentiment_filter
+        ]
     else:
         tmp_filtered = list(data_list)
 
@@ -57,9 +58,7 @@ def filter_feedbacks(
             cat_map = CATEGORY_KEYWORDS[keyword_filter]
             for item in tmp_filtered:
                 txt = item.text
-                for sub_key, sub_keywords in cat_map.items():
-                    if sub_key == "main":
-                        continue
+                for sub_keywords in cat_map.values():
                     if _contains_any(txt, sub_keywords):
                         final_filtered.append(item)
                         break
