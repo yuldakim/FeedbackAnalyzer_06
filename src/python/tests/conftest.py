@@ -50,11 +50,9 @@ def reset_session_and_globals():
     from text_analyzer import TextAnalyzer
 
     wiring.reset_state()
-    app_module.fil_data = []
     TextAnalyzer.global_sent = {}
     TextAnalyzer.global_kw = {}
     yield
     wiring.reset_state()
-    app_module.fil_data = []
     TextAnalyzer.global_sent = {}
     TextAnalyzer.global_kw = {}
