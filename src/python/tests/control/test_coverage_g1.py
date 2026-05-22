@@ -106,12 +106,14 @@ def test_filter_use_case_no_matching_results_warning():
     assert not store.has_snapshot()
 
 
-def test_download_use_case_no_snapshot_warning():
-    """INV-EMPTY-001: download without prior filter snapshot → warning."""
+def test_download_use_case_no_snapshot_returns_header_only():
+    """INV-EMPTY-001: download without prior filter snapshot → BOM + text header only."""
     store = InMemoryFilteredResultStorePort()
     uc = DownloadFilteredUseCase(store)
 
     vm = uc.execute()
 
-    assert vm.warning == "다운로드할 결과가 없습니다."
-    assert vm.body == ""
+    assert vm.warning is None
+    assert vm.body.startswith("\ufeff")
+    text = vm.body.lstrip("\ufeff")
+    assert text.splitlines()[0] == "text"

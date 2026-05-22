@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""AnalyzeFeedbackUseCase — STUB / RED phase."""
+"""AnalyzeFeedbackUseCase — trim, append, aggregate (F-01, INV-COUNT-002)."""
 
 from __future__ import annotations
 
@@ -21,7 +21,6 @@ class AnalyzeFeedbackUseCase:
         self._category = category or CategoryClassifier()
 
     def execute(self, text: str) -> AnalysisViewModel:
-        # STUB: trim·append 정책 미구현; 집계 스텁 반환
         stripped = text.strip()
         if stripped:
             self._repository.add_text(stripped)

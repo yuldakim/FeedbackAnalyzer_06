@@ -13,6 +13,9 @@ from text_analyzer import TextAnalyzer
 from filters import filter_feedbacks
 from infrastructure import wiring
 from logger import Logger
+from control.analyze_feedback import AnalyzeFeedbackUseCase
+from control.upload_csv import UploadCsvUseCase
+from control.dto import AnalysisViewModel
 
 app = Flask(__name__)
 
@@ -21,6 +24,19 @@ text_analyzer = TextAnalyzer()
 
 def _current_timestamp() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _render_vm(vm: AnalysisViewModel, feedbacks: list | None = None) -> str:
+    if feedbacks is None:
+        feedbacks = wiring.feedback_repository.all()
+    return render_page(
+        success=vm.success or "",
+        warning=vm.warning or "",
+        error=vm.error or "",
+        sentiment_results=vm.sentiment_results,
+        keyword_results=vm.keyword_results,
+        feedbacks=feedbacks,
+    )
 
 
 def render_page(
@@ -176,33 +192,17 @@ def index():
 @app.route("/analyze", methods=["POST"])
 def analyze():
     try:
-        feedbacks = Session.get_current_feedbacks()
-        text = request.form.get("text", "").strip()
-
-        if text:
-            feedbacks.append(Feedback(text))
-
+        vm = AnalyzeFeedbackUseCase(wiring.feedback_repository).execute(
+            request.form.get("text", "")
+        )
+        feedbacks = wiring.feedback_repository.all()
         for fb in feedbacks:
             Logger.log_info(fb.text)
-
-        Logger.log_info(f"현재 {len(feedbacks)}개의 피드백이 입력되었습니다.")
-
-        success = f"{len(feedbacks)}개의 피드백이 입력되었습니다."
-        sentiment_results = {}
-        keyword_results = {}
-
         if feedbacks:
-            sentiment_results = text_analyzer.sent(feedbacks)
-            keyword_results = text_analyzer.kw(feedbacks)
+            Logger.log_info(f"현재 {len(feedbacks)}개의 피드백이 입력되었습니다.")
             Logger.log_info("감성 분석 완료")
             Logger.log_info("키워드 분석 완료")
-
-        return render_page(
-            success=success,
-            sentiment_results=sentiment_results,
-            keyword_results=keyword_results,
-            feedbacks=feedbacks,
-        )
+        return _render_vm(vm, feedbacks=feedbacks)
     except Exception as e:
         Logger.log_error(f"오류 발생: {e}")
         return render_page(error="처리 중 오류가 발생했습니다.")
@@ -211,22 +211,12 @@ def analyze():
 @app.route("/upload", methods=["POST"])
 def upload():
     try:
-        feedbacks = Session.get_current_feedbacks()
         file = request.files.get("file")
-        if file and file.filename:
-            content = file.read().decode("utf-8-sig")
-            reader = csv.reader(io.StringIO(content))
-            first_line = True
-            for row in reader:
-                if first_line:
-                    first_line = False
-                    continue
-                if row and row[0].strip():
-                    feedbacks.append(Feedback(row[0].strip()))
+        raw = file.read() if file and file.filename else b""
+        vm = UploadCsvUseCase(wiring.feedback_repository).execute(raw)
+        if file and file.filename and vm.success:
             Logger.log_info("파일이 성공적으로 업로드되었습니다.")
-
-        success = f"{len(feedbacks)}개의 피드백이 입력되었습니다."
-        return render_page(success=success, feedbacks=feedbacks)
+        return _render_vm(vm)
     except Exception as e:
         Logger.log_error(f"파일 업로드 오류: {e}")
         return render_page(error="파일 업로드 중 오류가 발생했습니다.")

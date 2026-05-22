@@ -64,7 +64,7 @@ def test_get_download_without_filter_returns_csv_header_only(client):
 def test_post_analyze_exception_returns_error_page(client):
     """Boundary maps unexpected errors to user-facing error message."""
     with patch(
-        "app.Session.get_current_feedbacks",
+        "app.AnalyzeFeedbackUseCase.execute",
         side_effect=RuntimeError("test failure"),
     ):
         response = client.post("/analyze", data={"text": "테스트"})
