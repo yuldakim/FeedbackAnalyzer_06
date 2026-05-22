@@ -1,0 +1,59 @@
+# Feedback Analyzer — Golden Master (HTML/메시지 정규화)
+# GREEN baseline · X-09 RR-1(앵커 부정) 반영 후 approve
+# 재생성: APPROVE_GOLDEN=1 pytest … 또는 python tests/golden/regenerate.py
+
+
+[S1: SCN-A anchor POST /analyze]
+level: success
+message: [TIMESTAMP] 1개의 피드백이 입력되었습니다.
+expected_count: 1
+sentiment:
+  긍정: 0
+  중립: 0
+  부정: 1
+keyword:
+  배송: 1
+  품질: 0
+  가격: 0
+  서비스: 0
+  사용성: 0
+originals:
+  - 배송이 너무 늦어요. 화가 납니다.
+
+[S2: positive delivery POST /analyze]
+level: success
+message: [TIMESTAMP] 1개의 피드백이 입력되었습니다.
+expected_count: 1
+sentiment:
+  긍정: 1
+  중립: 0
+  부정: 0
+keyword:
+  배송: 1
+  품질: 0
+  가격: 0
+  서비스: 0
+  사용성: 0
+originals:
+  - 배송이 빨라서 좋아요
+
+[S3: whitespace-only INV-INPUT-001]
+level: success
+message: [TIMESTAMP] 1개의 피드백이 입력되었습니다.
+expected_count: 1
+sentiment:
+  긍정: 0
+  중립: 0
+  부정: 1
+keyword:
+  배송: 1
+  품질: 0
+  가격: 0
+  서비스: 0
+  사용성: 0
+originals:
+  - 배송이 너무 늦어요. 화가 납니다.
+
+[S4: zero feedback filter INV-EMPTY-001]
+level: warning
+message: 분석할 피드백이 없습니다.
