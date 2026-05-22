@@ -156,6 +156,12 @@ def render_page(
     if error:
         html += f'<p class="alert alert-danger">{escape(error)}</p>'
 
+    if feedbacks:
+        html += '<div class="section"><h3>피드백 원문</h3><ul>'
+        for fb in feedbacks:
+            html += f"<li>{escape(fb.text)}</li>"
+        html += "</ul></div>"
+
     html += "</div></body></html>"
     return html
 
@@ -235,6 +241,13 @@ def filter_route():
         sentiment = request.form.get("sentiment", "전체")
         keyword = request.form.get("keyword", "전체")
 
+        allowed_sentiments = {"전체", "긍정", "중립", "부정"}
+        if sentiment not in allowed_sentiments:
+            return render_page(
+                error=f"지원하지 않는 감정 필터입니다: {escape(sentiment)}",
+                feedbacks=feedbacks,
+            )
+
         if feedbacks:
             filtered = filter_feedbacks(feedbacks, sentiment, keyword)
             if filtered:
@@ -273,6 +286,6 @@ def download():
     )
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     Logger.log_info("서버가 http://localhost:8080 에서 시작됩니다.")
     app.run(host="0.0.0.0", port=8080)
