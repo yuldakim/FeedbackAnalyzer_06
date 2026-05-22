@@ -46,15 +46,15 @@ def client():
 @pytest.fixture(autouse=True)
 def reset_session_and_globals():
     import app as app_module
-    from session import Session
+    from infrastructure import wiring
     from text_analyzer import TextAnalyzer
 
-    Session.current_feedbacks = []
+    wiring.reset_state()
     app_module.fil_data = []
     TextAnalyzer.global_sent = {}
     TextAnalyzer.global_kw = {}
     yield
-    Session.current_feedbacks = []
+    wiring.reset_state()
     app_module.fil_data = []
     TextAnalyzer.global_sent = {}
     TextAnalyzer.global_kw = {}
