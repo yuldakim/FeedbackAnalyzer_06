@@ -77,7 +77,7 @@
 | X-04 | open | CSV 스냅샷 / `fil_data` — TC-B-09·boundary 미실행 |
 | X-05 | open | 카테고리 필터 `main` 스킵 — TC-B-11 미실행 |
 | X-06 | open | `Session` 클래스 변수 격리 — boundary/control fake 미실행 |
-| X-07 | open | Upload 후 미분석 — upload 라우트 미검증 |
+| X-07 | mitigated | Upload 후 미분석 — `test_coverage_boundary.py::test_post_upload_valid_csv_success`로 라우트 검증; 집계 연동은 REFACTOR(M2) |
 | X-08 | open | 0건 download — TC-A·B-EMP 미실행 |
 
 ### 3.2 조기 GREEN 메모 (결함 아님·테스트 보강)

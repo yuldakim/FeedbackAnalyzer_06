@@ -434,9 +434,9 @@ pytest --cov=entity --cov=control --cov-report=term-missing tests/
 
 ### 커버리지 목표 (GREEN 단계 전 RED 골격)
 
-- [ ] Entity + Control: **≥ 90%** (`cd src/python` → `pytest --cov=entity --cov=control --cov-report=term-missing`)
-- [x] Boundary: 앵커·0건·download·upload 오류 **스모크 4건 이상** 작성 (목표 수치 없음, G-1 보조) — TC-A 7건 (`tests/boundary/`)
-- [ ] 회귀 게이트: `pytest -v tests/` **0 failed** (RR-5, RED 단계에서는 expected fail 허용·개수 기록) — **스냅샷 2026-05-22:** 22 failed / 12 passed (34 tests)
+- [x] Entity + Control: **≥ 90%** — `pytest --cov=entity --cov=control tests/` (**100%**, `test_coverage_g1.py` 포함)
+- [x] Boundary (`app.py`): **≥ 85%** — `pytest --cov=app tests/boundary/` (**100%**, `test_coverage_boundary.py` 포함)
+- [x] 회귀 게이트: `pytest -v tests/` **0 failed** (RR-5) — **47 passed** (2026-05-22)
 
 ### 결함 목록 연결
 
@@ -635,7 +635,7 @@ MIT License — 자유 이용·수정·배포 가능. 상세 전문은 저장소
 - [ ] FilteredResultStore·FeedbackRepository (fil_data·Session 클래스 변수 제거) [M2] | ST-05 | pytest fake Port
 - [ ] 동적 키워드 등록 (카테고리명 + 키워드 목록) | ST-06 | PRD 5.3·Gherkin, 등록 후 분류
 - [ ] PageLogSink level별 페이지 표시 (warning/error) | ST-07, F-14 (선택) | 미션3; level 미포함 시 배너 미렌더
-- [ ] pytest-cov entity·control ≥90% | ST-08 | .cursorrules coverage
+- [x] pytest-cov entity·control ≥90% | ST-08 | G-1 달성 (`tests/control/test_coverage_g1.py`)
 
 ### 🟢 선택 (Nice-to-Have) — v2.0 / M3
 

@@ -156,6 +156,7 @@ sentiment=전체&keyword=전체
 | B-UPL-02 | **빈 파일** / 헤더만 | `error`; 기존 피드백·건수·원문 **불변** | INV-SESSION-001 | control |
 | B-UPL-03 | **깨진 인코딩** (invalid UTF-8) | `error`; 세션 불변 | INV-SESSION-001 | control |
 | B-UPL-04 | 앵커 1건 적재 후 B-UPL-02 | 여전히 1건·앵커 원문 | INV-SESSION-001 | control |
+| B-UPL-05 | `csv.reader` 파싱 예외 (`csv.Error`) | `error`; 세션 불변 | INV-SESSION-001 | control |
 
 ### 4.5 0건·필터·다운로드 (F-06, F-04)
 
@@ -226,10 +227,22 @@ sentiment=전체&keyword=전체
 |----------|-------------|
 | `AnalyzeFeedbackUseCase` | 공백-only → append 없음; 성공 시 ViewModel `sentiment_results`/`keyword_results` |
 | `FilterFeedbacksUseCase` | 0건 warning; 전체/전체 재집계 = Analyze; 중립 필터 |
-| `UploadCsvUseCase` | B-UPL-02~04, INV-SESSION-001 |
+| `UploadCsvUseCase` | B-UPL-01~05, INV-SESSION-001 |
 | `DownloadFilteredUseCase` | 스냅샷 없음 → warning; 있음 → BOM·헤더·행 |
 
 **Port:** `FeedbackRepository`, `FilteredResultStore` in-memory fake.
+
+#### 6.2.1 G-1 커버리지 보강 (`tests/control/test_coverage_g1.py`)
+
+| pytest 함수 | Case ID | Assert 요약 |
+|-------------|---------|-------------|
+| `test_upload_csv_use_case_valid_utf8_csv_appends_rows` | B-UPL-01 | 정상 CSV 2건 적재, `success` |
+| `test_upload_csv_use_case_utf16_bom_rejected` | B-UPL-02 | UTF-16 BOM → `error`, repo 불변 |
+| `test_upload_csv_use_case_invalid_utf8_decode_error` | B-UPL-03 | invalid UTF-8 → `error`, repo 불변 |
+| `test_upload_csv_use_case_csv_reader_error` | B-UPL-05 | `csv.Error` mock → `error`, repo 불변 |
+| `test_filter_use_case_empty_repository_warning` | B-EMP-01 | 0건 → `warning` |
+| `test_filter_use_case_no_matching_results_warning` | B-EMP-03 | 무결과 → `warning` |
+| `test_download_use_case_no_snapshot_warning` | B-EMP-02 | 스냅샷 없음 → `warning` |
 
 ### 6.3 `tests/boundary/` (P2, 소수)
 
@@ -240,6 +253,17 @@ sentiment=전체&keyword=전체
 | `test_get_download_after_filter_has_bom_and_header` | `Content-Disposition`, body starts with BOM, line2 `text` |
 | `test_post_upload_broken_csv_error` | `error`, 세션 불변(사전 analyze 후 건수) |
 
+#### 6.3.1 Boundary 커버리지 보강 (`tests/boundary/test_coverage_boundary.py`)
+
+| pytest 함수 | Case ID / INV | Assert 요약 |
+|-------------|---------------|-------------|
+| `test_get_index_renders_start_message` | SCN-A | `GET /`, 시작 메시지 |
+| `test_post_upload_valid_csv_success` | B-UPL-01, SCN-B | multipart CSV 2건 `success` |
+| `test_post_filter_no_matching_results_warning` | B-EMP-03 | `필터링 결과가 없습니다` |
+| `test_get_download_without_filter_returns_csv_header_only` | B-EMP-02, INV-EMPTY-001 | BOM + `text` 헤더만 |
+| `test_post_analyze_exception_returns_error_page` | — | analyze 예외 → `error` |
+| `test_post_filter_exception_returns_error_page` | — | filter 예외 → `error` |
+
 **격리:** 각 테스트 전 `Session`/Store reset fixture (TO-BE: Repository clear).
 
 ---
@@ -249,10 +273,24 @@ sentiment=전체&keyword=전체
 | 메트릭 | 목표 | 비고 |
 |--------|------|------|
 | `entity` + `control` 라인 커버리지 | **≥ 90%** | PRD G-1, README ST-08 |
-| `boundary` | 목표치 없음 (소수 스모크) | HTML·HTTP만 |
-| `app.py` (thin 이후) | 직접 목표 제외 가능 | 라우트 위임만 |
+| `app.py` (boundary 스모크) | **≥ 85%** 권장 | `tests/boundary/` + `test_coverage_boundary.py` |
+| `boundary` | HTTP·HTML 스모크 | TC-A + §6.3.1 |
 
-**미커버 허용(예외 기록):** `if __name__ == "__main__"`, mission7, 순수 Presenter HTML 템플릿 일부.
+**미커버 허용(예외 기록):** `if __name__ == "__main__"` (`# pragma: no cover`), mission7, 순수 Presenter HTML 템플릿 일부.
+
+**측정 스냅샷 (GREEN+커버리지 보강 후):**
+
+```bash
+cd src/python
+pytest --cov=entity --cov=control --cov-report=term-missing tests/
+pytest --cov=app --cov-report=term-missing tests/boundary/
+```
+
+| 메트릭 | 목표 | 달성(참고) |
+|--------|------|------------|
+| entity+control | ≥ 90% | **100%** (upload_csv 포함) |
+| app (boundary only) | ≥ 85% | **100%** |
+| 전체 pytest | 0 failed | **47 passed** |
 
 ---
 
@@ -278,7 +316,8 @@ pytest -v tests/
 
 | 범위 | 명령 |
 |------|------|
-| Entity+Control 커버리지 | `pytest --cov=entity --cov=control --cov-report=term-missing tests/entity tests/control` |
+| Entity+Control 커버리지 | `pytest --cov=entity --cov=control --cov-report=term-missing tests/` |
+| Boundary (`app.py`) | `pytest --cov=app --cov-report=term-missing tests/boundary/` |
 | HTML 리포트 | `pytest --cov=entity --cov=control --cov-report=html tests/entity tests/control` → `htmlcov/index.html` |
 | Boundary만 | `pytest -v tests/boundary` (cov 선택) |
 | mission7 제외 | `pytest -v -m "not mission7" tests/` |

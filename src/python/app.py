@@ -286,6 +286,6 @@ def download():
     )
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     Logger.log_info("서버가 http://localhost:8080 에서 시작됩니다.")
     app.run(host="0.0.0.0", port=8080)
