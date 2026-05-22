@@ -11,11 +11,11 @@ from constants import CATEGORIES
 from session import Session
 from text_analyzer import TextAnalyzer
 from filters import filter_feedbacks
+from infrastructure import wiring
 from logger import Logger
 
 app = Flask(__name__)
 
-fil_data: list = []
 text_analyzer = TextAnalyzer()
 
 
@@ -175,7 +175,6 @@ def index():
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
-    global fil_data
     try:
         feedbacks = Session.get_current_feedbacks()
         text = request.form.get("text", "").strip()
@@ -235,7 +234,6 @@ def upload():
 
 @app.route("/filter", methods=["POST"])
 def filter_route():
-    global fil_data
     try:
         feedbacks = Session.get_current_feedbacks()
         sentiment = request.form.get("sentiment", "전체")
@@ -251,7 +249,7 @@ def filter_route():
         if feedbacks:
             filtered = filter_feedbacks(feedbacks, sentiment, keyword)
             if filtered:
-                fil_data = filtered
+                wiring.filtered_store.save(filtered)
                 sentiment_results = text_analyzer.sent(filtered)
                 keyword_results = text_analyzer.kw(filtered)
                 Logger.log_info(f"필터링 결과: {len(filtered)}개의 피드백")
@@ -276,7 +274,7 @@ def download():
     output = io.StringIO()
     output.write("\ufeff")  # UTF-8 BOM
     output.write("text\n")
-    for fb in fil_data:
+    for fb in wiring.filtered_store.load():
         output.write(fb.text + "\n")
 
     return Response(

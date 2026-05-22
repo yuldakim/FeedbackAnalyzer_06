@@ -18,8 +18,7 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from app import app  # noqa: E402
-import app as app_module  # noqa: E402
-from session import Session  # noqa: E402
+from infrastructure import wiring  # noqa: E402
 from tests.conftest import ANCHOR_TEXT  # noqa: E402
 from tests.golden.helpers import (  # noqa: E402
     CSV_GOLDEN_PATH,
@@ -34,8 +33,7 @@ _POSITIVE_TEXT = "배송이 빨라서 좋아요"
 
 
 def _reset() -> None:
-    Session.current_feedbacks = []
-    app_module.fil_data = []
+    wiring.reset_state()
 
 
 def main() -> None:
