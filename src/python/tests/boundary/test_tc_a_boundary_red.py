@@ -102,11 +102,12 @@ def test_tc_a_05_post_upload_broken_csv_error_session_unchanged(client):
     # Then
     assert response.status_code == 200
     body = response.data.decode("utf-8")
-    from session import Session
+    from infrastructure import wiring
 
     assert "alert-danger" in body or "오류" in body
-    assert len(Session.get_current_feedbacks()) == 1
-    assert Session.get_current_feedbacks()[0].text == ANCHOR_TEXT
+
+    assert len(wiring.feedback_repository.all()) == 1
+    assert wiring.feedback_repository.all()[0].text == ANCHOR_TEXT
 
 
 def test_tc_a_06_post_analyze_multiline_original_preserved_in_html(client):

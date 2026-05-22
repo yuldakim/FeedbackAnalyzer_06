@@ -64,7 +64,7 @@ def test_get_download_without_filter_returns_csv_header_only(client):
 def test_post_analyze_exception_returns_error_page(client):
     """Boundary maps unexpected errors to user-facing error message."""
     with patch(
-        "app.AnalyzeFeedbackUseCase.execute",
+        "boundary.routes.AnalyzeFeedbackUseCase.execute",
         side_effect=RuntimeError("test failure"),
     ):
         response = client.post("/analyze", data={"text": "테스트"})
@@ -79,7 +79,7 @@ def test_post_filter_exception_returns_error_page(client):
     """Filter route exception → error page (no uncaught 500)."""
     client.post("/analyze", data={"text": ANCHOR_TEXT})
     with patch(
-        "app.FilterFeedbacksUseCase.execute",
+        "boundary.routes.FilterFeedbacksUseCase.execute",
         side_effect=RuntimeError("filter failure"),
     ):
         response = client.post(

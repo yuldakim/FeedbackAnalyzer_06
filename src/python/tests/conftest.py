@@ -13,10 +13,12 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 
-def _purge_shadow_entity_modules() -> None:
-    """tests/entity·tests/control 수집 시 최상위 entity/control 섀도잉 방지."""
+def _purge_shadow_package_modules(packages: tuple[str, ...]) -> None:
+    """tests/<pkg> 수집 시 최상위 entity/control/boundary 섀도잉 방지."""
     for key in list(sys.modules):
-        if key in ("entity", "control") or key.startswith(("entity.", "control.")):
+        if key in packages or any(
+            key.startswith(f"{name}.") for name in packages
+        ):
             mod = sys.modules[key]
             mod_file = getattr(mod, "__file__", "") or ""
             if mod_file and "tests" in mod_file.replace("\\", "/"):
@@ -27,15 +29,20 @@ ANCHOR_TEXT = "배송이 너무 늦어요. 화가 납니다."
 
 
 def pytest_configure(config) -> None:
-    _purge_shadow_entity_modules()
+    _purge_shadow_package_modules(("entity", "control", "boundary"))
     import importlib
 
     importlib.import_module("entity")
     importlib.import_module("control")
+    importlib.import_module("boundary")
 
 
 @pytest.fixture
 def client():
+    import importlib
+
+    _purge_shadow_package_modules(("boundary",))
+    importlib.import_module("boundary.routes")
     from app import app
 
     app.config["TESTING"] = True
@@ -45,8 +52,8 @@ def client():
 
 @pytest.fixture(autouse=True)
 def reset_session_and_globals():
-    import app as app_module
     from infrastructure import wiring
+
     wiring.reset_state()
     yield
     wiring.reset_state()
