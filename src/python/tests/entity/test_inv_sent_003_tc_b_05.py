@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from feedback import Feedback
-from filters import filter_feedbacks
+from entity.feedback_filter import FeedbackFilter
 
 from tests.support.contract import classify_sentiment_contract
 
@@ -22,7 +22,7 @@ def test_tc_b_05_neutral_filter_returns_only_contract_neutral_items():
     ]
 
     # Act
-    filtered = filter_feedbacks(feedbacks, "중립", "전체")
+    filtered = FeedbackFilter().filter(feedbacks, "중립", "전체")
 
     # Assert — TO-BE: 중립 = 긍·부 키워드 미매칭만
     for fb in filtered:

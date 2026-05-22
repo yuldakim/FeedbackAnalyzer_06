@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from feedback import Feedback
-from filters import filter_feedbacks
+from entity.feedback_filter import FeedbackFilter
 
 from constants import CATEGORY_KEYWORDS
 
@@ -21,7 +21,7 @@ def test_tc_b_11_category_filter_matches_main_keywords_not_sub_only():
     )
 
     # Act
-    filtered = filter_feedbacks(feedbacks, "전체", "품질")
+    filtered = FeedbackFilter().filter(feedbacks, "전체", "품질")
 
     # Then — TO-BE: 1 row; AS-IS filters.py continues sub only → 0
     assert len(filtered) == 1

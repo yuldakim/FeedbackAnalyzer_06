@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from feedback import Feedback
-from text_analyzer import TextAnalyzer
+from entity.sentiment_classifier import SentimentClassifier
 
 from tests.support.contract import assert_inv_count_002, classify_sentiment_contract
 from tests.support.fakes import InMemoryFeedbackRepository
@@ -20,10 +20,10 @@ def test_tc_b_06_mixed_feedbacks_sentiment_sum_equals_total_count():
     for text in (ANCHOR_TEXT, _POSITIVE_TEXT, _NEUTRAL_TEXT):
         repo.add_text(text)
     feedbacks = repo.all()
-    analyzer = TextAnalyzer()
+    sentiment = SentimentClassifier()
 
     # Act
-    sentiment_results = analyzer.sent(feedbacks)
+    sentiment_results = sentiment.aggregate(feedbacks)
 
     # Then — TO-BE (README: anchor 부정; sum = 3)
     assert len(feedbacks) == 3

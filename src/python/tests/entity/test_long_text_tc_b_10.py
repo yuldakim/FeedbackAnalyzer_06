@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from feedback import Feedback
-from text_analyzer import TextAnalyzer
+from entity.category_classifier import CategoryClassifier
+from entity.sentiment_classifier import SentimentClassifier
 
 from tests.support.contract import assert_inv_count_002, classify_sentiment_contract
 
@@ -17,11 +18,12 @@ def test_tc_b_10_long_text_original_equality_and_classification_complete():
     long_text = ANCHOR_PREFIX + ("x" * 9996) + ANCHOR_SUFFIX
     assert len(long_text) >= 10_000
     feedbacks = [Feedback(long_text)]
-    analyzer = TextAnalyzer()
+    sentiment = SentimentClassifier()
+    category = CategoryClassifier()
 
     # Act
-    sentiment_results = analyzer.sent(feedbacks)
-    keyword_results = analyzer.kw(feedbacks)
+    sentiment_results = sentiment.aggregate(feedbacks)
+    keyword_results = category.aggregate(feedbacks)
 
     # Then — TO-BE
     assert feedbacks[0].text == long_text

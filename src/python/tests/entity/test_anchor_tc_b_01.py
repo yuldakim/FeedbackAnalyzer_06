@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from entity.category_classifier import CategoryClassifier
+from entity.sentiment_classifier import SentimentClassifier
 from feedback import Feedback
-from text_analyzer import TextAnalyzer
 
 from tests.support.contract import (
     assert_inv_count_002,
@@ -19,11 +20,12 @@ def test_tc_b_01_anchor_negative_sentiment_and_delivery_category():
     """INV-COUNT-002: anchor analyze yields negative sentiment, delivery category, sum equals 1."""
     # Arrange
     feedbacks = [Feedback(ANCHOR_TEXT)]
-    analyzer = TextAnalyzer()
+    sentiment = SentimentClassifier()
+    category = CategoryClassifier()
 
     # Act
-    sentiment_results = analyzer.sent(feedbacks)
-    keyword_results = analyzer.kw(feedbacks)
+    sentiment_results = sentiment.aggregate(feedbacks)
+    keyword_results = category.aggregate(feedbacks)
 
     # Assert — TO-BE contract (PRD/README 앵커)
     assert sentiment_results == {"긍정": 0, "중립": 0, "부정": 1}

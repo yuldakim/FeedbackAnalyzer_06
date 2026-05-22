@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from feedback import Feedback
-from filters import filter_feedbacks
+from entity.feedback_filter import FeedbackFilter
 
 from tests.conftest import ANCHOR_TEXT
 from tests.support.legacy_session import build_download_body
@@ -17,7 +17,7 @@ def test_tc_b_09_filter_snapshot_row_order_matches_download_body():
     feedbacks = [Feedback(ANCHOR_TEXT), Feedback(_POSITIVE_TEXT)]
 
     # Act — TO-BE: filter keeps both for 전체/전체; snapshot order preserved
-    snapshot = filter_feedbacks(feedbacks, "전체", "전체")
+    snapshot = FeedbackFilter().filter(feedbacks, "전체", "전체")
     csv_body = build_download_body(snapshot)
 
     # Then

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from feedback import Feedback
-from text_analyzer import TextAnalyzer
+from entity.sentiment_classifier import SentimentClassifier
 
 from tests.support.contract import classify_sentiment_contract
 
@@ -14,10 +14,10 @@ def test_tc_b_03_positive_wins_when_positive_and_negative_keywords_present():
     """INV-SENT-001 order: positive before negative → label 긍정."""
     # Arrange
     feedbacks = [Feedback(_BOTH_POLARITY_TEXT)]
-    analyzer = TextAnalyzer()
+    sentiment = SentimentClassifier()
 
     # Act
-    sentiment_results = analyzer.sent(feedbacks)
+    sentiment_results = sentiment.aggregate(feedbacks)
 
     # Then — TO-BE (긍→부→중립)
     assert classify_sentiment_contract(_BOTH_POLARITY_TEXT) == "긍정"
