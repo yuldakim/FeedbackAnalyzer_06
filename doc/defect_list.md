@@ -20,7 +20,8 @@
 | **REFACTOR closed** | X-06, X-07 | Session → Repository; Upload 정책 문서화 |
 | **open (선택)** | X-08 일부 | download 헤더-only — boundary cov로 mitigated |
 
-**M1 GREEN:** TC-A-01~07, TC-B-01~12, `tests/tobe/`, Golden GM-TC-01~05
+**M1 GREEN:** TC-A-01~07, TC-B-01~12, `tests/tobe/`, Golden GM-TC-01~05  
+**M3·M4 Extension:** `pytest tests/` **62 passed**, Golden **5/5** — [`features_extension.md`](features_extension.md) §8
 
 ---
 

@@ -13,6 +13,15 @@ SENTIMENT_KEYWORDS = {
     ],
 }
 
+# 가중치 감성 분석 — 키워드별 가중치(미지정 시 1.0)
+SENTIMENT_KEYWORD_WEIGHTS: dict[str, dict[str, float]] = {
+    "긍정": {"만족": 1.0, "만족스럽": 1.2, "좋아요": 1.0},
+    "부정": {"별로": 1.2, "별로에요": 1.2, "화가": 1.5, "불만": 1.3},
+}
+
+# 혼합 감성: 긍·부 가중 점수 동점(양수)일 때 적용
+MIXED_SENTIMENT_TIE_BREAKER = "부정"
+
 CATEGORY_KEYWORDS = {
     "배송": {
         "main": ["배송", "택배", "배달", "물류", "배송지연", "배송시간", "퀵", "소포"],

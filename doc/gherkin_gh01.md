@@ -67,16 +67,16 @@ Scenario: Download CSV matches last filter snapshot
 
 ---
 
-### Scn4 — Dynamic keyword rule (ST-06, F-08) — **미착수 (🟢/mission7)**
+### Scn4 — Dynamic keyword rule (ST-06, F-08)
 
 ```gherkin
 Scenario: Register category keywords at runtime
   Given KeywordRuleRepository is available
-  When I register new keywords for a category
+  When I POST /keywords/register with category "프로모션" and keywords "이벤트-프로모션"
   Then classification uses the updated rules without changing stored feedback text (INV-RULE-002)
 ```
 
-**상태:** 선택 범위 — 현재 `constants.CATEGORY_KEYWORDS` 고정.
+**pytest:** `test_register_keyword.py`, `POST /keywords/register`
 
 ---
 

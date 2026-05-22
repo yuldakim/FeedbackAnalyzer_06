@@ -9,11 +9,30 @@ from typing import List, Optional
 
 from constants import CATEGORIES
 from control.dto import AnalysisViewModel
+from control.trend_analysis import TrendPoint
 from feedback import Feedback
 
 
 def _current_timestamp() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _trend_table_html(points: list[TrendPoint]) -> str:
+    if not points:
+        return ""
+    rows = "".join(
+        f"<tr><td>{escape(p.date)}</td><td>{p.count}</td>"
+        f"<td>{p.positive}</td><td>{p.negative}</td><td>{p.neutral}</td></tr>"
+        for p in points
+    )
+    return f"""
+    <div class="section">
+        <h3>피드백 트렌드 (Trend)</h3>
+        <table style="width:100%; border-collapse: collapse;">
+        <thead><tr><th>날짜</th><th>건수</th><th>긍정</th><th>부정</th><th>중립</th></tr></thead>
+        <tbody>{rows}</tbody>
+        </table>
+    </div>"""
 
 
 class HtmlPresenter:
@@ -25,6 +44,9 @@ class HtmlPresenter:
         sentiment_results: Optional[dict] = None,
         keyword_results: Optional[dict] = None,
         feedbacks: Optional[list] = None,
+        categories: Optional[List[str]] = None,
+        trend_points: Optional[list[TrendPoint]] = None,
+        show_log_settings: bool = True,
     ) -> str:
         if sentiment_results is None:
             sentiment_results = {}
@@ -32,6 +54,10 @@ class HtmlPresenter:
             keyword_results = {}
         if feedbacks is None:
             feedbacks = []
+        if categories is None:
+            categories = list(CATEGORIES)
+        if trend_points is None:
+            trend_points = []
 
         html = f"""<!DOCTYPE html>
 <html>
@@ -77,7 +103,7 @@ class HtmlPresenter:
         <form action="/analyze" method="post">
             <div class="form-group">
                 <label for="text">피드백 텍스트:</label>
-                <textarea id="text" name="text" placeholder="피드백을 입력하세요..."></textarea>
+                <textarea id="text" name="text" rows="6" placeholder="피드백을 입력하세요 (멀티라인 지원)..."></textarea>
             </div>
             <button type="submit">입력하기</button>
         </form>
@@ -96,7 +122,7 @@ class HtmlPresenter:
     </div>"""
 
         cat_options = "".join(
-            f'<option value="{cat}">{cat}</option>' for cat in CATEGORIES
+            f'<option value="{cat}">{cat}</option>' for cat in categories
         )
         html += f"""
     <div class="section">
@@ -121,6 +147,35 @@ class HtmlPresenter:
             <button type="submit">분  석</button>
         </form>
     </div>"""
+
+        if show_log_settings:
+            html += """
+    <div class="section">
+        <h3>PageLogSink (F-14)</h3>
+        <form action="/settings/log-levels" method="post">
+            <label><input type="checkbox" name="show_warning" value="1" checked> warning 페이지 표시</label>
+            <label style="margin-left:12px;"><input type="checkbox" name="show_error" value="1" checked> error 페이지 표시</label>
+            <button type="submit" style="margin-left:12px;">적용</button>
+        </form>
+    </div>"""
+
+        html += """
+    <div class="section">
+        <h3>동적 키워드 등록 (ST-06)</h3>
+        <form action="/keywords/register" method="post">
+            <div class="form-group">
+                <label for="category">카테고리명:</label>
+                <input type="text" id="category" name="category" placeholder="예: 프로모션">
+            </div>
+            <div class="form-group">
+                <label for="keywords">키워드 (쉼표 구분):</label>
+                <input type="text" id="keywords" name="keywords" placeholder="이벤트-프로모션,할인">
+            </div>
+            <button type="submit">등록</button>
+        </form>
+    </div>"""
+
+        html += _trend_table_html(trend_points)
 
         if warning:
             html += f'<p class="alert alert-warning">{escape(warning)}</p>'
@@ -173,16 +228,30 @@ class HtmlPresenter:
             )
         sentiment_results = vm.sentiment_results
         keyword_results = vm.keyword_results
-        if vm.warning or vm.error:
+        from infrastructure import wiring
+
+        warning = wiring.page_log_sink.filter_warning(vm.warning or "")
+        error = wiring.page_log_sink.filter_error(vm.error or "")
+        if warning or error:
             sentiment_results = {}
             keyword_results = {}
+        trend = []
+        categories = wiring.keyword_rule_repository.list_categories()
+        try:
+            from control.trend_analysis import TrendAnalysisUseCase
+
+            trend = TrendAnalysisUseCase(wiring.trend_csv_path).execute()
+        except Exception:
+            trend = []
         return self.render_page(
             success=vm.success or "",
-            warning=vm.warning or "",
-            error=vm.error or "",
+            warning=warning,
+            error=error,
             sentiment_results=sentiment_results,
             keyword_results=keyword_results,
             feedbacks=feedbacks,
+            categories=categories,
+            trend_points=trend,
         )
 
 

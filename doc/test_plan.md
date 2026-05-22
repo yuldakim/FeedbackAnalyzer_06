@@ -2,11 +2,11 @@
 
 | 항목 | 값 |
 |------|-----|
-| 문서 버전 | 1.0 |
+| 문서 버전 | 1.1 (M4 Extension) |
 | 작성 관점 | 시니어 QA 리드 |
 | 기준 샘플 | `POST /analyze` — 감정·카테고리 분류 및 집계 |
 | 앵커 입력 | `text=배송이 너무 늦어요. 화가 납니다.` |
-| 참조 | [`README.md`](../README.md), [`doc/PRD.md`](PRD.md), [`.cursorrules`](../.cursorrules) |
+| 참조 | [`README.md`](../README.md), [`doc/PRD.md`](PRD.md), [`features_extension.md`](features_extension.md), [`.cursorrules`](../.cursorrules) |
 | 실행 루트 | `src/python` |
 | 스택 | Python 3.11+, Flask 3.x, pytest, pytest-cov |
 | 아키텍처 | Dual-Track — `boundary` / `control` / `entity` |
@@ -17,7 +17,7 @@
 
 ### 1.1 목적
 
-앵커 예제를 중심으로 **F-01~F-06**(피드백 입력·분류·집계·필터·CSV)과 **INV-\*** 불변식을 pytest로 고정한다. 레거시(`text_analyzer` / `filters.S_KEYWORDS` 이중 규칙, `Session` 클래스 변수, `fil_data` 전역)는 **회귀·특이 케이스**로 명시하고, TO-BE는 **단일 `SentimentClassifier` + Port** 기준으로 검증한다.
+앵커 예제를 중심으로 **F-01~F-06**(피드백 입력·분류·집계·필터·CSV)과 **INV-\*** 불변식을 pytest로 고정한다. 레거시(`text_analyzer` / `filters.S_KEYWORDS` 이중 규칙, `Session` 클래스 변수, `fil_data` 전역)는 **회귀·특이 케이스**로 명시하고, TO-BE는 **가중치 `SentimentClassifier` + Port + FileHandler** 기준으로 검증한다 (**F-15~F-16**, [`features_extension.md`](features_extension.md)).
 
 ### 1.2 In-Scope
 
@@ -133,7 +133,7 @@ sentiment=전체&keyword=전체
 | Case ID | 입력 예시 | 기대 감정 | INV / 규칙 | 레이어 |
 |---------|-----------|-----------|------------|--------|
 | B-SEN-01 | `오늘은 특별한 일이 없었습니다.` | 중립 | INV-SENT-001 (긍·부 키워드 미매칭) | entity |
-| B-SEN-02 | `만족스럽지만 별로예요. 다시는 안 삽니다.` | **긍정** (긍→부→중립 순, 긍정 선매칭) | ST-02, §5.1 | entity |
+| B-SEN-02 | `만족스럽지만 별로예요. 다시는 안 삽니다.` | **긍정** (가중 합: 긍 > 부) | ST-02, F-15 | entity, TEST_F F-04 |
 | B-SEN-03 | 앵커 `배송이 너무 늦어요. 화가 납니다.` | **부정** (`SENTIMENT_KEYWORDS["부정"]`에 `화가` 포함, RR-1 **B**) | 앵커, F-02 | entity |
 | B-SEN-04 | `배송이 빨라서 좋아요` | 긍정 | F-02 | entity |
 | B-SEN-05 | 동일 세션에 B-SEN-01~04 누적 후 집계 | 긍+중+부 = 총 4 (또는 실제 적재 건수) | INV-COUNT-002 | entity, control |
@@ -305,7 +305,7 @@ pytest --cov=app --cov-report=term-missing tests/boundary/
 |--------|------|------------|
 | entity+control | ≥ 90% | **100%** (upload_csv 포함) |
 | app (boundary only) | ≥ 85% | **100%** |
-| 전체 pytest | 0 failed | **52 passed** (boundary·entity·control·tobe·golden) |
+| 전체 pytest | 0 failed | **62 passed** (M3·M4 Extension) |
 
 ---
 
@@ -415,3 +415,5 @@ Trend CSV, KeywordRule File DB — `@pytest.mark.mission7`, 본 계획서 §1.3 
 | 버전 | 일자 | 변경 |
 |------|------|------|
 | 1.0 | 2026-05-22 | 앵커 `POST /analyze` 기준 초안 작성 |
+| 1.1 | 2026-05-22 | M4: TEST_F §7.1, F-15 가중치 B-SEN |
+| 1.2 | 2026-05-22 | M3: mission7·JSON·KeywordRule·PageLogSink tests, **62 passed** |
