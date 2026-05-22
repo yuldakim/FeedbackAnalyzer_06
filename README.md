@@ -14,6 +14,7 @@
 - [입력 형식 계약](#입력-형식-계약)
 - [아키텍처](#아키텍처)
 - [테스트 실행](#테스트-실행)
+- [RED 단계 To-Do 리스트](#red-단계-to-do-리스트)
 - [설정 파일 (KeywordRule)](#설정-파일-keywordrule-file-db--jsonyaml)
 - [출력 포맷](#출력-포맷)
 - [생성형 AI 활용 Activities](#생성형-ai-활용-activities)
@@ -401,6 +402,50 @@ pytest --cov=entity --cov=control --cov-report=term-missing tests/
 
 ---
 
+## RED 단계 To-Do 리스트
+
+> 이 체크리스트는 [`doc/test_plan.md`](doc/test_plan.md) 기반으로 생성되었습니다.  
+> 각 항목은 **RED**(실패하는 pytest 작성) 완료 시 체크합니다. docstring에 **INV-\*** 1줄을 포함합니다.
+
+### Track A — UI / Boundary 테스트 (`tests/boundary/`)
+
+- [x] TC-A-01: `POST /analyze` 앵커 `text=배송이 너무 늦어요. 화가 납니다.` → 200, `success`, 부정·배송 집계·원문 표시 (SCN-A Happy Path, TP-10) — `test_tc_a_boundary_red.py` (RED: 실패, X-09)
+- [x] TC-A-02: `POST /analyze` `text=   ` → 피드백 미추가, 건수·원문 불변 (B-IN-02, **INV-INPUT-001**) — RED 통과
+- [x] TC-A-03: 피드백 0건 `POST /filter` → `warning`「분석할 피드백 없음」(B-EMP-01, **INV-EMPTY-001**) — RED 통과
+- [x] TC-A-04: 앵커 적재 → `POST /filter` (`부정`,`배송`) → `GET /download` BOM + `text` 헤더 + 원문 1행 (B-EMP-04, **INV-CSV-OUT-003**) — RED: 실패
+- [x] TC-A-05: `POST /upload` 깨진/빈 CSV → `error`, 기존 세션 건수·원문 불변 (B-UPL-02~03, **INV-SESSION-001**) — RED 통과
+- [x] TC-A-06: `POST /analyze` 멀티라인 `첫 줄\n둘째 줄` → HTML에 줄바꿈 포함 원문 1건 (B-IN-05, **INV-TEXT-001**) — RED: 실패
+- [x] TC-A-07: `POST /filter` `sentiment=알수없음` → `error` 또는 문서화된 fallback + 메시지 (B-FLT-01, PRD C-09) — RED: 실패
+
+### Track B — Domain / Logic 테스트 (`tests/entity/`, `tests/control/`)
+
+- [x] TC-B-01: 앵커 문장 분류 → 감정 `부정`, 카테고리 `배송` ≥ 1, `긍정+중립+부정=1` (B-SEN-03, B-CAT-01, **INV-COUNT-002**, TP-01) — RED: 실패, X-09
+- [x] TC-B-02: `오늘은 특별한 일이 없었습니다.` → `중립` (**INV-SENT-001**, B-SEN-01) — RED 통과
+- [x] TC-B-03: `만족스럽지만 별로예요...` → 긍·부 키워드 동시 시 **긍정** (긍→부→중립 순, B-SEN-02) — RED 통과
+- [x] TC-B-04: Analyze 직후 감정 집계 = `Filter(전체,전체)` 재집계 (**INV-SENT-002**, TP-05, X-01) — 04a 통과·04b RED 실패
+- [x] TC-B-05: `Filter(중립,전체)` 결과에 중립 라벨만 (**INV-SENT-003**, X-02) — RED: 실패
+- [x] TC-B-06: N건 혼합 입력 후 `긍정+중립+부정 == len(feedbacks)` (**INV-COUNT-002**, B-SEN-05, X-03) — RED: 실패
+- [x] TC-B-07: `text=""` / trim 후 공백-only → append 없음 (**INV-INPUT-001**, B-IN-01~03) — RED 통과
+- [x] TC-B-08: `UploadCsvUseCase` 빈·깨진 파일 → `error` + Repository 건수·원문 불변 (**INV-SESSION-001**, B-UPL-04) — RED 통과 (2함수)
+- [x] TC-B-09: Filter 스냅샷 행·순서 = Download CSV 본문 (**INV-CSV-OUT-003**, X-04) — RED 통과 (mirror)
+- [x] TC-B-10: 10_000자 장문 입력 → 원문 equality·분류 완료 (**INV-TEXT-001**, B-IN-04) — RED 통과 (`화남` suffix)
+- [x] TC-B-11: `keyword=배송` 필터 + 앵커(main 매칭) → 1건 반환 (TO-BE main+sub, X-05) — RED: 실패
+- [x] TC-B-12: `SENTIMENT_KEYWORDS` 부분 문자열 매칭 단위 검증 (`constants.py` 기준) — RED 통과
+
+### 커버리지 목표 (GREEN 단계 전 RED 골격)
+
+- [ ] Entity + Control: **≥ 90%** (`cd src/python` → `pytest --cov=entity --cov=control --cov-report=term-missing`)
+- [x] Boundary: 앵커·0건·download·upload 오류 **스모크 4건 이상** 작성 (목표 수치 없음, G-1 보조) — TC-A 7건 (`tests/boundary/`)
+- [ ] 회귀 게이트: `pytest -v tests/` **0 failed** (RR-5, RED 단계에서는 expected fail 허용·개수 기록) — **스냅샷 2026-05-22:** 22 failed / 12 passed (34 tests)
+
+### 결함 목록 연결
+
+- [x] [`doc/defect_list.md`](doc/defect_list.md) 생성 및 RED 중 발견 결함 기록 (재현: **X-01**, **X-02**, **X-09**; open: X-03~X-08)
+- [ ] 앵커 `화가` vs `화남` 키워드 정합(X-09) — 계약·키워드·테스트 중 한 축으로 팀 합의 (**RR-1**, `defect_list.md` §6 **합의 대기**)
+- [ ] 모든 결함 **GREEN** 수정 후 전체 pytest·INV-SENT-002/003·INV-COUNT-002 회귀 통과 확인
+
+---
+
 ## 설정 파일 (KeywordRule File DB / JSON·YAML)
 
 **상태:** mission7 **선택** 기능 — 구현 전에는 [`constants.py`](src/python/constants.py) 가 기본값.
@@ -610,16 +655,24 @@ MIT License — 자유 이용·수정·배포 가능. 상세 전문은 저장소
 
 ### ✅ 완료 항목
 
-<!-- [x] 항목 | 완료일 | 통과 INV/pytest/Gherkin -->
+- [x] 테스트 계획서 [`doc/test_plan.md`](doc/test_plan.md) v1.0 | 2026-05-22 | TC-A/B·INV 매핑
+- [x] RED pytest 골격 (`tests/entity`, `control`, `boundary`, `tobe`) | 2026-05-22 | TC-A-01~07, TC-B-01~12, docstring **INV-\***
+- [x] 결함 목록 [`doc/defect_list.md`](doc/defect_list.md) | 2026-05-22 | X-01, X-02, X-09 재현
+- [x] TO-BE 스켈레톤 `entity/`, `control/` + `tests/tobe/` | 2026-05-22 | GREEN 대상 STUB·RED 13건
+- [x] RED 부분 통과 (레거시·계약 일치 구간) | 2026-05-22 | **INV-INPUT-001**, **INV-SESSION-001**, **INV-EMPTY-001**, **INV-SENT-001**(TC-B-02), TC-B-03·07·08·09·10·12
+
+<!-- [x] 항목 | 완료일 | 통과 INV/pytest/Gherkin — 🔴 Must-Have·M2는 GREEN·§7.1 전체 통과 후 [x] -->
 
 ### 📋 회귀 방지 체크리스트
 
-- [ ] INV-SENT-002 · INV-SENT-003 · INV-COUNT-002 · INV-CSV-OUT-003
-- [ ] INV-INPUT-001 · INV-SESSION-001 · INV-EMPTY-001 · INV-TEXT-001
-- [ ] PRD §7.1 ↔ Gherkin ↔ README INV 용어 동일 (**RR-1**)
-- [ ] RR-3 이중 감정表 · RR-4 전역/Session 재도입 없음
-- [ ] RR-5 전체 pytest 0 실패
-- [ ] Cursor AI_퀴즈 - 문제.docx 미반영 (**NG-2**)
+- [ ] INV-SENT-002 · INV-SENT-003 · INV-COUNT-002
+- [x] INV-CSV-OUT-003 (TC-B-09 RED 통과; TC-A-04는 경계 RED 실패)
+- [x] INV-INPUT-001 · INV-SESSION-001 · INV-EMPTY-001 (TC-A-02·03·05, TC-B-07·08 RED 통과)
+- [ ] INV-TEXT-001 (TC-B-10 통과; TC-A-06 멀티라인 HTML RED 실패)
+- [x] PRD §7.1 ↔ Gherkin ↔ README INV 용어 동일 (**RR-1**) — 문서·`tests/support/contract.py` 정합 (구현 미완)
+- [ ] RR-3 이중 감정表 · RR-4 전역/Session 재도입 없음 — 레거시 AS-IS 유지 중
+- [ ] RR-5 전체 pytest 0 실패 — RED 스냅샷 22 failed / 12 passed
+- [x] Cursor AI_퀴즈 - 문제.docx 미반영 (**NG-2**)
 
 ### 🗓️ 마일스톤
 
