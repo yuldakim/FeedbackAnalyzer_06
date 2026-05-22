@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Control layer (TO-BE use cases). RED phase: skeleton stubs only."""
+"""Control layer — application use cases (M2 runtime)."""
 
 from control.analyze_feedback import AnalyzeFeedbackUseCase
 from control.download_filtered import DownloadFilteredUseCase

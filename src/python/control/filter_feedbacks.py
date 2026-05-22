@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""FilterFeedbacksUseCase — STUB / RED phase."""
+"""FilterFeedbacksUseCase — filter snapshot and aggregate (INV-SENT-003, INV-CSV-OUT-003)."""
 
 from __future__ import annotations
 

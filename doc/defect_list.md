@@ -2,7 +2,7 @@
 
 | 항목 | 값 |
 |------|-----|
-| 문서 버전 | 1.1 (GREEN 클로저) |
+| 문서 버전 | 1.2 (REFACTOR 클로저) |
 | RED 기록일 | 2026-05-22 |
 | GREEN 확인일 | 2026-05-22 |
 | pytest 명령 | `cd src/python` → `.venv\Scripts\python.exe -m pytest -v --tb=short tests/entity/test_anchor_tc_b_01.py tests/control/test_inv_sent_002_tc_b_04.py tests/entity/test_inv_sent_003_tc_b_05.py` |
@@ -17,7 +17,8 @@
 |------|------|------|
 | **RED failed (기록)** | 3 | X-01, X-02, X-09 — TC-B-01, TC-B-04b, TC-B-05 |
 | **GREEN closed** | 3 | 2026-05-22 — 전체 `pytest tests/` **52 passed** |
-| **open (M2)** | X-03~X-08 | N건 혼합·Session·File DB 등 — M1 pytest로 커버된 항목은 mitigated/closed 별도 표 |
+| **REFACTOR closed** | X-06, X-07 | Session → Repository; Upload 정책 문서화 |
+| **open (선택)** | X-08 일부 | download 헤더-only — boundary cov로 mitigated |
 
 **M1 GREEN:** TC-A-01~07, TC-B-01~12, `tests/tobe/`, Golden GM-TC-01~05
 
@@ -79,8 +80,8 @@
 | X-03 | closed (M1) | TC-B-06 — N건 혼합 **INV-COUNT-002** |
 | X-04 | closed (M1) | TC-B-09, TC-A-04, GM-TC-05 — **INV-CSV-OUT-003** |
 | X-05 | closed (M1) | TC-B-11 — main+sub 카테고리 필터 |
-| X-06 | open | `Session` 클래스 변수 격리 — boundary/control fake 미실행 |
-| X-07 | mitigated | Upload 후 미분석 — `test_coverage_boundary.py::test_post_upload_valid_csv_success`로 라우트 검증; 집계 연동은 REFACTOR(M2) |
+| X-06 | **closed (REFACTOR)** | `Session` 제거 → `MemoryFeedbackRepository` + `wiring` (C-01, C-13) |
+| X-07 | **closed (policy)** | Upload 후 자동 재분석 없음 — ADR-03·`UploadCsvUseCase` append only; TC-B-08·boundary cov |
 | X-08 | mitigated | TC-A-03, GM-TC-04 — 0건 filter warning; download 헤더-only는 `test_coverage_boundary` |
 
 ### 3.2 조기 GREEN 메모 (결함 아님·테스트 보강)
@@ -120,7 +121,7 @@
 |------|------|
 | **선택** | **(B)** `화가` 키워드 추가 — 데모 문장 `배송이 너무 늦어요. 화가 납니다.` 유지 |
 | **문서** | README RED To-Do·Golden·[`doc/PRD.md`](PRD.md) §7.1 INV `[x]` 반영 |
-| **잔여** | Gherkin feature 본문 선행 정합 — M2 (동작·pytest는 GREEN 통과) |
+| **문서** | [`doc/gherkin_gh01.md`](gherkin_gh01.md) — GH-01 추적본 (RR-1·M2) |
 
 ---
 
@@ -130,3 +131,4 @@
 |------|------|------|
 | 1.0 | 2026-05-22 | RED pytest 4건 실행; X-01, X-02, X-09 재현 기록 |
 | 1.1 | 2026-05-22 | GREEN 클로저; RR-1 **(B)**; 52 passed 스냅샷 |
+| 1.2 | 2026-05-22 | REFACTOR: X-06·X-07 closed; Gherkin 추적 문서; CategoryClassifier main+sub |

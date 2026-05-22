@@ -10,7 +10,6 @@ from typing import List, Optional
 from constants import CATEGORIES
 from control.dto import AnalysisViewModel
 from feedback import Feedback
-from infrastructure import wiring
 
 
 def _current_timestamp() -> str:
@@ -167,7 +166,11 @@ class HtmlPresenter:
         self, vm: AnalysisViewModel, feedbacks: Optional[List[Feedback]] = None
     ) -> str:
         if feedbacks is None:
-            feedbacks = wiring.feedback_repository.all()
+            feedbacks = (
+                [Feedback(t) for t in vm.feedback_texts]
+                if vm.feedback_texts
+                else []
+            )
         sentiment_results = vm.sentiment_results
         keyword_results = vm.keyword_results
         if vm.warning or vm.error:

@@ -17,7 +17,13 @@ class CategoryClassifier:
     def match_categories(self, text: str) -> List[str]:
         matched: List[str] = []
         for cat, sub_map in CATEGORY_KEYWORDS.items():
-            for sub_keywords in sub_map.values():
+            main_keywords = sub_map.get("main", [])
+            if self._contains_any(text, main_keywords):
+                matched.append(cat)
+                continue
+            for bucket, sub_keywords in sub_map.items():
+                if bucket == "main":
+                    continue
                 if self._contains_any(text, sub_keywords):
                     matched.append(cat)
                     break

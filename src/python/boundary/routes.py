@@ -51,7 +51,9 @@ def upload():
         vm = UploadCsvUseCase(wiring.feedback_repository).execute(raw)
         if file and file.filename and vm.success:
             Logger.log_info("파일이 성공적으로 업로드되었습니다.")
-        return presenter.render_vm(vm)
+        return presenter.render_vm(
+            vm, feedbacks=wiring.feedback_repository.all()
+        )
     except Exception as e:
         Logger.log_error(f"파일 업로드 오류: {e}")
         return presenter.render_page(error="파일 업로드 중 오류가 발생했습니다.")
@@ -66,11 +68,12 @@ def filter_route():
             request.form.get("sentiment", "전체"),
             request.form.get("keyword", "전체"),
         )
+        repo_feedbacks = wiring.feedback_repository.all()
         if vm.error:
-            return presenter.render_vm(vm)
+            return presenter.render_vm(vm, feedbacks=repo_feedbacks)
         if vm.warning:
             Logger.log_warning(vm.warning)
-            return presenter.render_vm(vm)
+            return presenter.render_vm(vm, feedbacks=repo_feedbacks)
         filtered = wiring.filtered_store.load()
         Logger.log_info(f"필터링 결과: {len(filtered)}개의 피드백")
         return presenter.render_vm(vm, feedbacks=filtered)

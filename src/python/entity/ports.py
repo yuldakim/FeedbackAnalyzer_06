@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Port interfaces (TO-BE). Skeleton — no infrastructure binding."""
+"""Port interfaces — implemented in infrastructure/ (M2)."""
 
 from __future__ import annotations
 
