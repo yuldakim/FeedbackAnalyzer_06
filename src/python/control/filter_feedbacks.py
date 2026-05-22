@@ -3,10 +3,12 @@
 
 from __future__ import annotations
 
-from entity.category_classifier import CategoryClassifier
-from entity.feedback_filter import FeedbackFilter
-from entity.sentiment_classifier import SentimentClassifier
-from entity.ports import FeedbackRepositoryPort, FilteredResultStorePort
+from entity.feedback_analyzer import FeedbackAnalyzer
+from entity.ports import (
+    FeedbackRepositoryPort,
+    FilteredResultStorePort,
+    KeywordRuleRepositoryPort,
+)
 from control.dto import AnalysisViewModel
 
 
@@ -15,19 +17,15 @@ class FilterFeedbacksUseCase:
         self,
         repository: FeedbackRepositoryPort,
         store: FilteredResultStorePort,
-        feedback_filter: FeedbackFilter | None = None,
-        sentiment: SentimentClassifier | None = None,
-        category: CategoryClassifier | None = None,
+        analyzer: FeedbackAnalyzer | None = None,
+        rule_repo: KeywordRuleRepositoryPort | None = None,
     ) -> None:
-        self._repository = repository
-        self._store = store
-        self._filter = feedback_filter or FeedbackFilter()
-        self._sentiment = sentiment or SentimentClassifier()
-        self._category = category or CategoryClassifier()
+        self._analyzer = analyzer or FeedbackAnalyzer(
+            repository, store=store, rule_repo=rule_repo
+        )
 
     def execute(self, sentiment: str, keyword: str) -> AnalysisViewModel:
-        feedbacks = self._repository.all()
-        if not feedbacks:
+        if not self._analyzer.getCurrentFeedbacks():
             return AnalysisViewModel(warning="분석할 피드백이 없습니다.")
 
         allowed_sentiments = {"전체", "긍정", "중립", "부정"}
@@ -36,13 +34,12 @@ class FilterFeedbacksUseCase:
                 error=f"지원하지 않는 감정 필터입니다: {sentiment}"
             )
 
-        filtered = self._filter.filter(feedbacks, sentiment, keyword)
-        if not filtered:
+        filter_result = self._analyzer.filter(sentiment, keyword)
+        if not filter_result.feedbacks:
             return AnalysisViewModel(warning="필터링 결과가 없습니다.")
 
-        self._store.save(filtered)
         return AnalysisViewModel(
-            sentiment_results=self._sentiment.aggregate(filtered),
-            keyword_results=self._category.aggregate(filtered),
-            feedback_texts=[fb.text for fb in filtered],
+            sentiment_results=filter_result.sentiment_results,
+            keyword_results=filter_result.keyword_results,
+            feedback_texts=[fb.text for fb in filter_result.feedbacks],
         )

@@ -13,6 +13,7 @@
 - [지원 감정·카테고리 및 키워드 기준](#지원-감정카테고리-및-키워드-기준)
 - [입력 형식 계약](#입력-형식-계약)
 - [아키텍처](#아키텍처)
+- [신규 기능 (M4 Extension)](#신규-기능-m4-extension)
 - [테스트 실행](#테스트-실행)
 - [RED 단계 To-Do 리스트](#red-단계-to-do-리스트)
 - [REFACTOR 단계 To-Do 리스트](#refactor-단계-to-do-리스트)
@@ -38,6 +39,9 @@
 | 전역 상태 | `fil_data`, `global_sent`, `global_kw` | `infrastructure` Port (**RR-4**) |
 | 세션 설계 | `Session` 클래스 변수 | `MemoryFeedbackRepository` |
 | 중립 필터 | 규칙 불일치 | `FeedbackFilter` + **INV-SENT-003** |
+| 감성 알고리즘 | 첫 매칭·else 중립 | **가중치 합 비교** (F-15) |
+| CSV 영속화 | `file_handler` 미사용 | **FileHandler** + `data/exports/` (F-16) |
+| 명명 | `fil`/`sent`/`kw` | `FeedbackAnalyzer` C++ 스타일 API (M4-N) |
 
 자세한 배경: [`doc/PRD.md` §1.2](doc/PRD.md) · 실행 기록: [`doc/refactoring_plan.md`](doc/refactoring_plan.md).
 
@@ -189,16 +193,25 @@ python app.py
 
 출처: [`src/python/constants.py`](src/python/constants.py)
 
-### 감정 (Sentiment)
+### 감정 (Sentiment) — 가중치 분석 (F-15)
 
-| 구분 | 식별자 | 키워드 출처 | 비고 |
-|------|--------|-------------|------|
-| 긍정 | `긍정` | `SENTIMENT_KEYWORDS["긍정"]` | 부분 문자열 매칭 (예: 만족, 감사, 최고) |
-| 부정 | `부정` | `SENTIMENT_KEYWORDS["부정"]` | 부분 문자열 매칭 (예: 불만, 화남, 최악) |
-| 중립 | `중립` | (별도 목록 없음) | 긍·부 **모두** 미매칭 시 중립 (**INV-SENT-001**) |
+| 구분 | 식별자 | 규칙 | 비고 |
+|------|--------|------|------|
+| 긍정 | `긍정` | `SENTIMENT_KEYWORDS["긍정"]` 매칭 키워드의 **가중 합** | `SENTIMENT_KEYWORD_WEIGHTS` (미지정=1.0) |
+| 부정 | `부정` | `SENTIMENT_KEYWORDS["부정"]` 매칭 키워드의 **가중 합** | 예: `화가` 1.5, `별로` 1.2 |
+| 중립 | `중립` | 긍·부 가중 점수 **모두 0** | else fallback 아님 (**INV-SENT-001**) |
+| 혼합 동점 | — | `MIXED_SENTIMENT_TIE_BREAKER` | 기본 **부정** (양수 동점 시) |
 | 필터 전체 | `전체` | — | 감정 조건 없음 |
 
-> **개선 목표:** `filters.S_KEYWORDS` 와 **단일** `SentimentClassifier` 로 통합 (**INV-SENT-002**).
+**알고리즘 (레거시 대비):**
+
+| 레거시 | 현재 (`SentimentClassifier`) |
+|--------|------------------------------|
+| 첫 매칭 키워드로 즉시 결정 (긍→부→else) | 모든 매칭 키워드 카운트 후 **가중 점수 비교** |
+| 혼합 텍스트 순서 의존 | `scoreSentiment()` → `analyzeSentiment()` |
+| 중립 = 마지막 else | 키워드 없을 때만 중립 |
+
+> **단일 허브:** Analyze·Filter 동일 `SentimentClassifier` (**INV-SENT-002**). 상세: [`doc/features_extension.md` §2](doc/features_extension.md).
 
 ### 카테고리 (Category)
 
@@ -338,11 +351,14 @@ boundary  →  control  →  entity
 | `app.py` | Flask composition root (~20줄) |
 | `boundary/routes.py`, `boundary/presenter.py` | HTTP · HTML (F-10) |
 | `control/*_use_case.py` | 유스케이스 오케스트레이션 |
-| `entity/` | `SentimentClassifier`, `CategoryClassifier`, `FeedbackFilter`, `ports.py` |
-| `infrastructure/` | `MemoryFeedbackRepository`, `MemoryFilteredResultStore`, `wiring.py` |
-| `tests/boundary`, `tests/entity`, `tests/control`, `tests/tobe` | 회귀 (tobe = TO-BE 병렬 검증) |
+| `entity/` | `SentimentClassifier`, `CategoryClassifier`, `FeedbackFilter`, `FeedbackAnalyzer`, `FilterResult`, `ports.py` |
+| `infrastructure/` | `MemoryFeedbackRepository`, `MemoryFilteredResultStore`, `FileHandler`, `FileKeywordRuleRepository`, `PageLogSink`, `wiring.py` |
+| `data/` | `feedback_rules.json`, `test_feedback_trend.csv`, `exports/` |
+| `data/exports/` | `POST /analyze` 시 `session_feedbacks.csv` (gitignore) |
+| `tests/boundary`, `tests/entity`, `tests/control`, `tests/tobe`, `tests/infrastructure` | 회귀 + **`TEST_F`** |
 
-**삭제됨:** `text_analyzer.py`, `filters.py`, `session.py`, `file_handler.py`
+**삭제됨 (M2):** `text_analyzer.py`, `filters.py`, `session.py`  
+**복원·구현 (M4):** `infrastructure/file_handler.py` (Lava Flow → CSV 저장)
 
 ### 새 카테고리·키워드 추가 방법 (OCP)
 
@@ -356,6 +372,41 @@ boundary  →  control  →  entity
 | 6 | **REFACTOR** | `constants.py` 는 bootstrap 또는 fallback 으로만 유지 |
 
 **금지:** `filters.py` 에 별도 `S_KEYWORDS` 표를 다시 두는 것 (**INV-SENT-002** 위반).
+
+---
+
+## 신규 기능 (M4 Extension)
+
+> 상세: [`doc/features_extension.md`](doc/features_extension.md)
+
+### 가중치 감성 분석 (F-15)
+
+- API: `SentimentClassifier.scoreSentiment(text)`, `analyzeSentiment(text)`
+- 설정: `constants.SENTIMENT_KEYWORDS`, `SENTIMENT_KEYWORD_WEIGHTS`, `MIXED_SENTIMENT_TIE_BREAKER`
+- 테스트: `tests/entity/test_f_weighted_sentiment.py` (`@pytest.mark.TEST_F`)
+
+### FileHandler CSV 저장 (F-16)
+
+- `FileHandler.saveFeedbacksCsv` / `saveAnalysisCsv`
+- `POST /analyze` 후 `src/python/data/exports/session_feedbacks.csv` 자동 저장
+- 테스트: `tests/infrastructure/test_f_file_handler.py`
+
+### C++ 스타일 명명 (M4-N)
+
+| 레거시 | 신규 |
+|--------|------|
+| `sent()` | `FeedbackAnalyzer.analyzeSentiment()` |
+| `kw()` | `FeedbackAnalyzer.analyzeKeywords()` |
+| `fil()` | `FeedbackAnalyzer.filter()` → `FilterResult` |
+| `fil_data` | `FilterResult` + `FilteredResultStore` (전역 금지) |
+| `getOldDataFromSession()` | `getCurrentFeedbacks()` |
+
+- 테스트: `tests/entity/test_f_feedback_analyzer_naming.py`
+
+```bash
+pytest -v -m TEST_F tests/    # 신규 기능 12건만
+pytest -v tests/              # 전체 64건
+```
 
 ---
 
@@ -383,6 +434,9 @@ pytest -v tests/
 | Control | `tests/control/` | 커버리지 **주력** |
 | Boundary | `tests/boundary/` | Flask client **소수** |
 | Mission 7 | `@pytest.mark.mission7` | Trend·File DB (선택) |
+| **M4 Extension** | `@pytest.mark.TEST_F` | 가중치 감성·FileHandler·명명 (12건) |
+
+**현재 회귀:** **62 passed** (2026-05-22, M3·M4 Extension 반영 후).
 
 ### 커버리지
 
@@ -390,7 +444,7 @@ pytest -v tests/
 pytest --cov=entity --cov=control --cov-report=term-missing tests/
 ```
 
-**통과 기준:** entity·control 합산 **≥ 90%** ([`doc/PRD.md` G-1](doc/PRD.md)).
+**통과 기준:** entity·control 합산 **≥ 90%** ([`doc/PRD.md` G-1](doc/PRD.md)). M3·M4 반영 후 entity+control **약 99%**, 전 레이어 **약 94%** ([`doc/features_extension.md` §6·§8](doc/features_extension.md)).
 
 ### `.cursorrules` TDD 단계 ↔ 미션 매핑
 
@@ -469,9 +523,9 @@ pytest --cov=entity --cov=control --cov-report=term-missing tests/
 ### REFACTOR 잔여 (비선택·문서)
 
 - [x] Gherkin GH-01 추적 문서 ([`doc/gherkin_gh01.md`](doc/gherkin_gh01.md)) — RR-1 **(B)** `화가`·M2 아키텍처 반영
-- [ ] `KeywordRuleRepository` (F-08, ST-06) — **🟢/mission7** 범위
-- [ ] `tests/tobe/` → `tests/entity|control` 통합 (Phase 5 선택)
-- [ ] 네이밍 `fil`/`sent`/`kw` (M4)
+- [x] `KeywordRuleRepository` (F-08, ST-06) — `FileKeywordRuleRepository` + `data/feedback_rules.json`
+- [x] `tests/tobe/` → `tests/integration/test_tobe_parity.py` 통합
+- [x] 네이밍 `fil`/`sent`/`kw` (M4) — `FeedbackAnalyzer`·`FilterResult`
 
 ---
 
@@ -510,7 +564,7 @@ pytest --cov=entity --cov=control --cov-report=term-missing tests/
 ```bash
 cd src/python
 pytest -v tests/boundary/test_golden_master.py
-pytest -v tests/    # 전체 회귀에 포함 (현재 52건+)
+pytest -v tests/    # 전체 회귀에 포함 (현재 64건)
 ```
 
 | 단계 | 명령 | 비고 |
@@ -602,7 +656,7 @@ src/python/
 | `warning` | `alert-warning` | 0건·무결과 (**PageLogSink** level에 warning 포함 시) |
 | `error` | `alert-danger` | 업로드·처리 오류 |
 
-### CSV 다운로드 (`filtered_feedback.csv`)
+### CSV 다운로드 (`GET /download` → `filtered_feedback.csv`)
 
 ```csv
 text
@@ -614,6 +668,18 @@ text
 | 파일 선두 UTF-8 BOM | INV-CSV-OUT-001 |
 | 1행 헤더 `text` | INV-CSV-OUT-002 |
 | 2행~ = 필터 스냅샷 순서 | **INV-CSV-OUT-003** |
+
+### FileHandler 세션 export (F-16)
+
+`POST /analyze` 성공 시 서버가 자동 저장 (`data/exports/`, gitignore):
+
+| 항목 | 값 |
+|------|-----|
+| 경로 | `src/python/data/exports/session_feedbacks.csv` |
+| 형식 | UTF-8 BOM, 헤더 `text`, 세션 피드백 원문 행 |
+| API | `FileHandler.saveFeedbacksCsv`, `FeedbackAnalyzer.persistFeedbacksToCsv` |
+
+분석 상세 CSV: `saveAnalysisCsv` — [`doc/features_extension.md` §3](doc/features_extension.md).
 
 ### PageLogSink (목표, 미션 3)
 
@@ -652,7 +718,7 @@ levels:
 
 ### AI 사용 시 권장 프롬프트 맥락
 
-- 현재 TDD 단계: **REFACTOR (M2 완료)** — 신규 동작은 RED부터
+- 현재 TDD 단계: **M4 Extension 반영** — 가중치 감성·FileHandler·명명 (`TEST_F` green)
 - 준수 Invariant: 예) `INV-SENT-002`
 - 레이어: 변경 허용 경로만 명시 (`entity/…`)
 
@@ -686,6 +752,9 @@ MIT License — 자유 이용·수정·배포 가능. 상세 전문은 저장소
 | [`.cursorrules`](.cursorrules) | TDD·아키텍처·forbidden 규칙 |
 | [`doc/refactoring_plan.md`](doc/refactoring_plan.md) | M2 REFACTOR 실행 계획·C-01~C-14 완료 기록 |
 | [`doc/gherkin_gh01.md`](doc/gherkin_gh01.md) | Phase 4 Gherkin GH-01 추적 (RR-1·pytest 매핑) |
+| [`doc/features_extension.md`](doc/features_extension.md) | **M4·M3** 가중치·FileHandler·KeywordRule·JSON API·TEST_F |
+| [`Report/Feature.md`](Report/Feature.md) | **M3·M4·TO-DO** 신규 기능·README 반영 종합 보고 |
+| [`doc/refactoring.md`](doc/refactoring.md) | REFACTOR 전·후 작업 결과 보고서 |
 | [`doc/OLD_README.md`](doc/OLD_README.md) | 이전 간단 README 보관 |
 
 ---
@@ -701,7 +770,7 @@ MIT License — 자유 이용·수정·배포 가능. 상세 전문은 저장소
 ### 🔴 필수 (Must-Have) — v1.0 차단 항목 (M1)
 
 - [x] 피드백 입력 검증 (trim, 공백-only 미추가, **멀티라인 1건**) | ST-01, F-01 | INV-INPUT-001, INV-TEXT-001 — TC-A-02·06, TC-B-07
-- [x] SentimentClassifier 단일 허브 (긍정→부정→중립, Analyze=Filter 동일) | ST-02 | INV-SENT-002 — `entity/sentiment_classifier.py`, TC-B-04
+- [x] SentimentClassifier 단일 허브 (가중치 비교, Analyze=Filter 동일) | ST-02, F-15 | INV-SENT-002 — `entity/sentiment_classifier.py`, TC-B-04, `TEST_F` F-01~06
 - [x] 중립 감정 필터 ("중립" 선택 시 중립만 반환) | ST-02 | INV-SENT-003 — TC-B-05
 - [x] 수동·CSV 피드백 수집 (UTF-8 BOM, 헤더 text, 빈 행 스킵) | ST-01 | INV-SESSION-001 — TC-A-05, TC-B-08, `control/upload_csv.py`
 - [x] 감정·카테고리 집계 (긍정+중립+부정 합=대상 건수) | ST-03 | INV-COUNT-002 — TC-B-01·06
@@ -711,27 +780,27 @@ MIT License — 자유 이용·수정·배포 가능. 상세 전문은 저장소
 ### 🟡 권장 (Should-Have) — M2
 
 - [x] Dual-Track BCE 분리 (boundary/control/entity, app.py thin) [M2] | ST-05 | `boundary/`, `entity` Flask import 없음
-- [ ] KeywordRuleRepository(Port) + OCP [M2] | ST-06 | **🟢/mission7 범위** — 현재 `constants.CATEGORY_KEYWORDS`
+- [x] KeywordRuleRepository(Port) + OCP [M2] | ST-06 | `infrastructure/keyword_rule_repository.py`
 - [x] FilteredResultStore·FeedbackRepository (fil_data·Session 제거) [M2] | ST-05 | `infrastructure/`, `tests/support/port_fakes.py`
-- [ ] 동적 키워드 등록 (카테고리명 + 키워드 목록) | ST-06 | **🟢/mission7** — F-08 선행
-- [ ] PageLogSink level별 페이지 표시 (warning/error) | ST-07, F-14 | **선택(미션3)** — 현재 `Logger` print
+- [x] 동적 키워드 등록 (카테고리명 + 키워드 목록) | ST-06 | `POST /keywords/register`
+- [x] PageLogSink level별 페이지 표시 (warning/error) | ST-07, F-14 | `PageLogSink` + `POST /settings/log-levels`
 - [x] pytest-cov entity·control ≥90% | ST-08 | G-1 달성 (`tests/control/test_coverage_g1.py`)
 
 ### 🟢 선택 (Nice-to-Have) — v2.0 / M3
 
-- [ ] Trend 시각화 (test_feedback_trend.csv) | ST-09 | @pytest.mark.mission7
-- [ ] 감정·키워드 File DB 관리 | ST-09 | KeywordRule 영속화
-- [ ] 멀티라인 텍스트 입력 UI (폼 UX) | — | 계약은 F-01·INV-TEXT-001 (🔴과 중복 시 UI만 🟢)
-- [ ] JSON API 응답 (집계·필터 결과) | ST-10, F-13 | **INV-JSON-001**, PRD §6.5
+- [x] Trend 시각화 (test_feedback_trend.csv) | ST-09 | `TrendAnalysisUseCase` + index 테이블 · `@pytest.mark.mission7`
+- [x] 감정·키워드 File DB 관리 | ST-09 | `data/feedback_rules.json` · sentiment+categories
+- [x] 멀티라인 텍스트 입력 UI (폼 UX) | — | `textarea rows="6"` · TC-A-06
+- [x] JSON API 응답 (집계·필터 결과) | ST-10, F-13 | `/api/session`, `/api/analyze`, `/api/filter` · **INV-JSON-001**
 
 ### 🔵 기술 부채 — M2~M4 (동작 변경 시 RED부터 재시작)
 
 - [x] app.py `render_page`·라우트 God Function 분리 [M2] | `boundary/presenter.py`, `boundary/routes.py`
 - [x] `text_analyzer`·`filters`·`S_KEYWORDS` 제거 [M2] | **RR-3** — 파일 삭제 완료
-- [x] 이중 감정 규칙 제거 [M2] | `SentimentClassifier` 단일; 카테고리는 `constants` 유지 (F-08은 미착수)
+- [x] 이중 감정 규칙 제거 [M2] | `SentimentClassifier` 단일; F-08 `FileKeywordRuleRepository` 연동
 - [x] `fil_data`·`global_sent`·`Session` 전역 제거 [M2] | **RR-4** — `infrastructure/wiring.py`
-- [x] `file_handler.py` Lava Flow [M4] | 삭제 완료 (C-14)
-- [ ] 네이밍 fil/sent/kw/fil_data [M4] | 도메인 용어 rename | 미션4
+- [x] `file_handler.py` Lava Flow [M4] | **F-16** `infrastructure/file_handler.py` 재구현·CSV 저장
+- [x] 네이밍 fil/sent/kw/fil_data [M4] | `FeedbackAnalyzer`·`FilterResult`·`getCurrentFeedbacks` | `TEST_F` F-09~12
 
 ### ✅ 완료 항목
 
@@ -744,6 +813,8 @@ MIT License — 자유 이용·수정·배포 가능. 상세 전문은 저장소
 - [x] Golden Master baseline·GM-TC-01~05 | 2026-05-22 | `tests/golden/`, `test_golden_master.py`
 - [x] PRD G-1 커버리지 entity·control ≥90% | 2026-05-22 | **100%** (`test_coverage_g1.py`, `test_coverage_boundary.py`)
 - [x] REFACTOR M2 (C-01~C-14) | 2026-05-22 | [`doc/refactoring_plan.md`](doc/refactoring_plan.md) · `origin/refactoring`
+- [x] M4 Extension (F-15·F-16·명명) | 2026-05-22 | [`doc/features_extension.md`](doc/features_extension.md)
+- [x] M3 Extension (F-08·F-11~F-14) | 2026-05-22 | **62 passed**, KeywordRule·JSON API·Trend·PageLogSink
 
 <!-- [x] 항목 | 완료일 | 통과 INV/pytest/Gherkin — 🔴 Must-Have·M2는 GREEN·§7.1 전체 통과 후 [x] -->
 
@@ -755,7 +826,7 @@ MIT License — 자유 이용·수정·배포 가능. 상세 전문은 저장소
 - [x] INV-TEXT-001 — TC-B-10, TC-A-06
 - [x] PRD §7.1 ↔ Gherkin ↔ README INV 용어 동일 (**RR-1**) — X-09 **(B)** `화가`; [`doc/gherkin_gh01.md`](doc/gherkin_gh01.md)
 - [x] RR-3 `S_KEYWORDS` 제거 · RR-4 `fil_data`/Session 전역 제거 — REFACTOR C-01~C-14 (2026-05-22)
-- [x] RR-5 전체 pytest 0 실패 — **52 passed** / 0 failed (2026-05-22)
+- [x] RR-5 전체 pytest 0 실패 — **62 passed** / 0 failed (2026-05-22)
 - [x] Cursor AI_퀴즈 - 문제.docx 미반영 (**NG-2**)
 
 ### 🗓️ 마일스톤
@@ -763,6 +834,6 @@ MIT License — 자유 이용·수정·배포 가능. 상세 전문은 저장소
 | 마일스톤 | 범위 | 차단 TO-DO |
 |----------|------|------------|
 | M1 v1.0 Domain | ST-01~04, 🔴 전부 | INV·Gherkin·핵심 pytest |
-| M2 v1.1 Architecture | ST-05~08, 🟡·🔵 [M2] | **핵심 완료** (F-08·ST-06·PageLogSink·🟢 제외) |
-| M3 v2.0 Extension | ST-09~10, 🟢 | mission7·Trend·File DB |
-| M4 Debt sweep | 🔵 [M4] | 리팩터 only |
+| M2 v1.1 Architecture | ST-05~08, 🟡·🔵 [M2] | **완료** |
+| M3 v2.0 Extension | ST-09~10, 🟢 | **완료** (Trend·File DB·JSON API·PageLogSink) |
+| M4 Extension | F-15~16, 명명, TEST_F | **완료** (가중치·FileHandler·[`doc/features_extension.md`](doc/features_extension.md)) |

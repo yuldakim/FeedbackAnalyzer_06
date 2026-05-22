@@ -11,7 +11,7 @@ _BOTH_POLARITY_TEXT = "만족스럽지만 별로예요. 다시는 안 삽니다.
 
 
 def test_tc_b_03_positive_wins_when_positive_and_negative_keywords_present():
-    """INV-SENT-001 order: positive before negative → label 긍정."""
+    """Weighted sentiment: positive score > negative on mixed text → 긍정."""
     # Arrange
     feedbacks = [Feedback(_BOTH_POLARITY_TEXT)]
     sentiment = SentimentClassifier()

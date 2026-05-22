@@ -180,7 +180,7 @@ src/python/
 |----------|------|
 | **M1 Domain** | **완료** |
 | **M2 Architecture** | **핵심 완료** (F-08·ST-06·F-14·🟢 제외) |
-| **M3 Extension** | **미착수** |
+| **M3 Extension** | **완료** (F-08·F-11~14·JSON·Trend·PageLogSink) |
 
 ---
 
@@ -204,7 +204,9 @@ src/python/
 | F-11~F-13 Trend·JSON·File DB | M3 |
 | Gherkin 본문 일괄 갱신 | **완료** — [`doc/gherkin_gh01.md`](gherkin_gh01.md) |
 | `tests/tobe/` 통합 | Phase 5 선택 |
-| M4 네이밍 fil/sent/kw | 미션4 |
+| M4 네이밍 fil/sent/kw | **완료** — [`features_extension.md`](features_extension.md) |
+| F-15 가중치 감성 | **완료** |
+| F-16 FileHandler CSV | **완료** |
 
 ### 9.2 SRP 잔여 (코드 품질, 기능 아님)
 
@@ -250,6 +252,7 @@ src/python/
 | `defect_list` X-06·X-07 | **closed** (Repository·Upload 정책) |
 | `doc/gherkin_gh01.md` | **완료** |
 | `CategoryClassifier` main+sub (F-03) | **완료** |
+| `doc/features_extension.md` | **완료** |
 
 ---
 

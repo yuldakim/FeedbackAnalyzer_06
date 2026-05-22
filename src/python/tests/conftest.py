@@ -29,6 +29,10 @@ ANCHOR_TEXT = "배송이 너무 늦어요. 화가 납니다."
 
 
 def pytest_configure(config) -> None:
+    config.addinivalue_line(
+        "markers",
+        "TEST_F: new feature tests (weighted sentiment, FileHandler, naming)",
+    )
     _purge_shadow_package_modules(("entity", "control", "boundary"))
     import importlib
 
