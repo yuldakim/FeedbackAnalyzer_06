@@ -47,12 +47,6 @@ def client():
 def reset_session_and_globals():
     import app as app_module
     from infrastructure import wiring
-    from text_analyzer import TextAnalyzer
-
     wiring.reset_state()
-    TextAnalyzer.global_sent = {}
-    TextAnalyzer.global_kw = {}
     yield
     wiring.reset_state()
-    TextAnalyzer.global_sent = {}
-    TextAnalyzer.global_kw = {}
