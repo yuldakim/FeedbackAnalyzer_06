@@ -253,6 +253,21 @@ sentiment=전체&keyword=전체
 | `test_get_download_after_filter_has_bom_and_header` | `Content-Disposition`, body starts with BOM, line2 `text` |
 | `test_post_upload_broken_csv_error` | `error`, 세션 불변(사전 analyze 후 건수) |
 
+#### 6.3.2 Golden Master / Approval (`tests/golden/`, `test_golden_master.py`)
+
+| 자산 | 시나리오 | 비고 |
+|------|----------|------|
+| `feedback_golden_master.txt` | S1~S4 | `[S1: …]` 섹션, `load_section` / `assert_golden_text` |
+| `download_filtered_anchor.csv` | S5 | `load_csv_golden` / `assert_golden_csv` (**INV-CSV-OUT-003**) |
+| `helpers.py` | — | `APPROVE_GOLDEN=1` 승인·`difflib.unified_diff` FAIL |
+| `normalize.py` | — | HTTP HTML 정규화 (stdout 금지) |
+| `regenerate.py` | — | GREEN baseline 재생성 |
+
+```bash
+pytest -v tests/boundary/test_golden_master.py
+# 1회 기준 승인: APPROVE_GOLDEN=1 pytest tests/boundary/test_golden_master.py -v
+```
+
 #### 6.3.1 Boundary 커버리지 보강 (`tests/boundary/test_coverage_boundary.py`)
 
 | pytest 함수 | Case ID / INV | Assert 요약 |
@@ -290,7 +305,7 @@ pytest --cov=app --cov-report=term-missing tests/boundary/
 |--------|------|------------|
 | entity+control | ≥ 90% | **100%** (upload_csv 포함) |
 | app (boundary only) | ≥ 85% | **100%** |
-| 전체 pytest | 0 failed | **47 passed** |
+| 전체 pytest | 0 failed | **52 passed** (boundary·entity·control·tobe·golden) |
 
 ---
 
@@ -368,7 +383,7 @@ pytest -v tests/
 | 단계 | 산출 | 담당 |
 |------|------|------|
 | Week 1 RED | `tests/entity` 앵커+§4 경계 전부 | Dev + QA 리뷰 INV 태그 |
-| Week 2 RED→GREEN | `tests/control` + X-01~05 해소 | Dev |
+| Week 2 RED→GREEN | `tests/control` + X-01~05 해소 | Dev — **완료** (2026-05-22, 52 passed) |
 | Week 3 | boundary 3~5건, cov ≥ 90% | Dev, QA 인수 §7.1 체크 |
 
 ---

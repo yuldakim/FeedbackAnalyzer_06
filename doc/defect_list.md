@@ -1,9 +1,10 @@
-# 결함 목록 — Feedback Analyzer (RED 단계)
+# 결함 목록 — Feedback Analyzer
 
 | 항목 | 값 |
 |------|-----|
-| 문서 버전 | 1.0 |
-| 기준 실행일 | 2026-05-22 |
+| 문서 버전 | 1.1 (GREEN 클로저) |
+| RED 기록일 | 2026-05-22 |
+| GREEN 확인일 | 2026-05-22 |
 | pytest 명령 | `cd src/python` → `.venv\Scripts\python.exe -m pytest -v --tb=short tests/entity/test_anchor_tc_b_01.py tests/control/test_inv_sent_002_tc_b_04.py tests/entity/test_inv_sent_003_tc_b_05.py` |
 | assert 기준 | TO-BE — [`doc/PRD.md`](PRD.md), [`README.md`](../README.md), `tests/support/contract.py` |
 | 참조 | [`doc/test_plan.md`](test_plan.md) §5, §5.1 · PRD §7.1 |
@@ -14,11 +15,11 @@
 
 | 구분 | 건수 | 비고 |
 |------|------|------|
-| **failed** | 3 | RED 정상 (계약 vs 레거시 갭) |
-| **passed** | 1 | 조기 GREEN — 집계만 검증, 이중 규칙 미노출 |
-| **조기 GREEN** | 1 | `test_tc_b_04_analyze_aggregate_equals_filter_whole_recount` |
+| **RED failed (기록)** | 3 | X-01, X-02, X-09 — TC-B-01, TC-B-04b, TC-B-05 |
+| **GREEN closed** | 3 | 2026-05-22 — 전체 `pytest tests/` **52 passed** |
+| **open (M2)** | X-03~X-08 | N건 혼합·Session·File DB 등 — M1 pytest로 커버된 항목은 mitigated/closed 별도 표 |
 
-**RED TC 범위:** TC-B-01, TC-B-04 (2함수), TC-B-05
+**M1 GREEN:** TC-A-01~07, TC-B-01~12, `tests/tobe/`, Golden GM-TC-01~05
 
 ---
 
@@ -63,6 +64,8 @@
 
 ## 3. 결함 표
 
+> **상태 (v1.1):** **X-01·X-02·X-09** → **closed (GREEN)** — §5 클로저. 아래 표는 RED 재현 시점 스냅샷.
+
 | ID | Severity | 결함 유형 | 재현 절차 | 기대값 | 실제값 | 근본 원인 | 수정 요약 |
 |----|----------|-----------|-----------|--------|--------|-----------|-----------|
 | **X-09** | Critical | 감정 분류(Analyze)·키워드 정합(앵커) | `pytest tests/entity/test_anchor_tc_b_01.py::test_tc_b_01_anchor_negative_sentiment_and_delivery_category`; `POST /analyze` `text=배송이 너무 늦어요. 화가 납니다.` | PRD/README: `sentiment_results` 긍0/중0/부1; TO-BE 테스트 assert 부정 1건 | `TextAnalyzer.sent`: 긍0/중1/부0; `classify_sentiment_contract`도 `중립` (현 키워드表) | `constants.SENTIMENT_KEYWORDS["부정"]`에 `화남`만 등록; 입력 `화가`는 부분매칭 실패. README 데모는 부정·PRD §6.1 예시와 문장·키워드 불일치 | **RR-1** 합의: (A) 문장을 `화남` 포함으로 정합 **또는** (B) 키워드 확장. 이후 **단일 SentimentClassifier**로 Analyze·Filter 통일 |
@@ -73,12 +76,12 @@
 
 | ID | 상태 | 비고 |
 |----|------|------|
-| X-03 | open | 집계 합 불일치 — 앵커 1건에서 COUNT-002는 합=1로 성립, 별도 N건 혼합 TC 미실행 |
-| X-04 | open | CSV 스냅샷 / `fil_data` — TC-B-09·boundary 미실행 |
-| X-05 | open | 카테고리 필터 `main` 스킵 — TC-B-11 미실행 |
+| X-03 | closed (M1) | TC-B-06 — N건 혼합 **INV-COUNT-002** |
+| X-04 | closed (M1) | TC-B-09, TC-A-04, GM-TC-05 — **INV-CSV-OUT-003** |
+| X-05 | closed (M1) | TC-B-11 — main+sub 카테고리 필터 |
 | X-06 | open | `Session` 클래스 변수 격리 — boundary/control fake 미실행 |
 | X-07 | mitigated | Upload 후 미분석 — `test_coverage_boundary.py::test_post_upload_valid_csv_success`로 라우트 검증; 집계 연동은 REFACTOR(M2) |
-| X-08 | open | 0건 download — TC-A·B-EMP 미실행 |
+| X-08 | mitigated | TC-A-03, GM-TC-04 — 0건 filter warning; download 헤더-only는 `test_coverage_boundary` |
 
 ### 3.2 조기 GREEN 메모 (결함 아님·테스트 보강)
 
@@ -99,22 +102,25 @@
 
 ---
 
-## 5. GREEN 우선순위
+## 5. GREEN 클로저 (2026-05-22)
 
-| 순서 | ID | Blocker 이유 |
-|------|-----|----------------|
-| 1 | **X-09** | M1 앵커·데모·TC-B-01 차단; 키워드·문장 RR-1 합의 선행 |
-| 2 | **X-01** | INV-SENT-002·ST-02; Analyze/Filter 단일화 없으면 집계·필터 전반 신뢰 불가 |
-| 3 | **X-02** | INV-SENT-003·중립 필터; X-01 단일 Classifier와 동시 해결 권장 |
+| ID | 조치 | 검증 |
+|----|------|------|
+| **X-09** | **RR-1 (B)** — `constants.SENTIMENT_KEYWORDS["부정"]`에 `화가` 추가; README 앵커 문장 유지 | TC-B-01, TC-A-01, GM-TC-01 |
+| **X-01** | `filters._label_sentiment` + `entity/sentiment_classifier.py`; Analyze·Filter 동일 규칙 | TC-B-04b, INV-SENT-002 |
+| **X-02** | 중립 필터 = 긍·부 미매칭만; `S_KEYWORDS["중립"]` 목록 경로 제거 | TC-B-05, INV-SENT-003 |
+
+**회귀:** `cd src/python` → `pytest -v tests/` → **52 passed**, 0 failed.
 
 ---
 
-## 6. 미확정·팀 합의 필요 (RR-1)
+## 6. RR-1 결정 기록 (X-09)
 
-| 주제 | 현황 | 선택지 |
-|------|------|--------|
-| **X-09 앵커 문장 vs 키워드** | README/PRD는 **부정** 예시; `SENTIMENT_KEYWORDS`·`contract.py`는 `화가`→**중립**; 테스트 assert는 README **부정** | (A) 데모 문장을 `…화남…` 등 키워드와 정합 (B) `화가` 등 키워드 추가 (C) README 예시를 중립으로 변경 — **PRD → Gherkin → README** 순 |
-| **X-09 합의 전** | `doc/defect_list.md`에 기록 완료; README 「앵커 화가 vs 화남」체크는 **합의 대기** (`[ ]` 유지) | defect_list §6 참조 |
+| 항목 | 결정 |
+|------|------|
+| **선택** | **(B)** `화가` 키워드 추가 — 데모 문장 `배송이 너무 늦어요. 화가 납니다.` 유지 |
+| **문서** | README RED To-Do·Golden·[`doc/PRD.md`](PRD.md) §7.1 INV `[x]` 반영 |
+| **잔여** | Gherkin feature 본문 선행 정합 — M2 (동작·pytest는 GREEN 통과) |
 
 ---
 
@@ -123,3 +129,4 @@
 | 버전 | 일자 | 변경 |
 |------|------|------|
 | 1.0 | 2026-05-22 | RED pytest 4건 실행; X-01, X-02, X-09 재현 기록 |
+| 1.1 | 2026-05-22 | GREEN 클로저; RR-1 **(B)**; 52 passed 스냅샷 |

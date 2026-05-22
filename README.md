@@ -15,6 +15,7 @@
 - [아키텍처](#아키텍처)
 - [테스트 실행](#테스트-실행)
 - [RED 단계 To-Do 리스트](#red-단계-to-do-리스트)
+- [Golden Master 회귀 안전장치](#golden-master-회귀-안전장치)
 - [설정 파일 (KeywordRule)](#설정-파일-keywordrule-file-db--jsonyaml)
 - [출력 포맷](#출력-포맷)
 - [생성형 AI 활용 Activities](#생성형-ai-활용-activities)
@@ -405,44 +406,93 @@ pytest --cov=entity --cov=control --cov-report=term-missing tests/
 ## RED 단계 To-Do 리스트
 
 > 이 체크리스트는 [`doc/test_plan.md`](doc/test_plan.md) 기반으로 생성되었습니다.  
-> 각 항목은 **RED**(실패하는 pytest 작성) 완료 시 체크합니다. docstring에 **INV-\*** 1줄을 포함합니다.
+> **RED** 작성 완료 후 **GREEN** 통과(2026-05-22, 52 passed) — 항목 메모는 `GREEN 통과` 기준.
 
 ### Track A — UI / Boundary 테스트 (`tests/boundary/`)
 
-- [x] TC-A-01: `POST /analyze` 앵커 `text=배송이 너무 늦어요. 화가 납니다.` → 200, `success`, 부정·배송 집계·원문 표시 (SCN-A Happy Path, TP-10) — `test_tc_a_boundary_red.py` (RED: 실패, X-09)
-- [x] TC-A-02: `POST /analyze` `text=   ` → 피드백 미추가, 건수·원문 불변 (B-IN-02, **INV-INPUT-001**) — RED 통과
-- [x] TC-A-03: 피드백 0건 `POST /filter` → `warning`「분석할 피드백 없음」(B-EMP-01, **INV-EMPTY-001**) — RED 통과
-- [x] TC-A-04: 앵커 적재 → `POST /filter` (`부정`,`배송`) → `GET /download` BOM + `text` 헤더 + 원문 1행 (B-EMP-04, **INV-CSV-OUT-003**) — RED: 실패
-- [x] TC-A-05: `POST /upload` 깨진/빈 CSV → `error`, 기존 세션 건수·원문 불변 (B-UPL-02~03, **INV-SESSION-001**) — RED 통과
-- [x] TC-A-06: `POST /analyze` 멀티라인 `첫 줄\n둘째 줄` → HTML에 줄바꿈 포함 원문 1건 (B-IN-05, **INV-TEXT-001**) — RED: 실패
-- [x] TC-A-07: `POST /filter` `sentiment=알수없음` → `error` 또는 문서화된 fallback + 메시지 (B-FLT-01, PRD C-09) — RED: 실패
+- [x] TC-A-01: `POST /analyze` 앵커 `text=배송이 너무 늦어요. 화가 납니다.` → 200, `success`, 부정·배송 집계·원문 표시 (SCN-A Happy Path, TP-10) — GREEN 통과 (X-09 RR-1 **B** `화가` 키워드)
+- [x] TC-A-02: `POST /analyze` `text=   ` → 피드백 미추가, 건수·원문 불변 (B-IN-02, **INV-INPUT-001**) — GREEN 통과
+- [x] TC-A-03: 피드백 0건 `POST /filter` → `warning`「분석할 피드백 없음」(B-EMP-01, **INV-EMPTY-001**) — GREEN 통과
+- [x] TC-A-04: 앵커 적재 → `POST /filter` (`부정`,`배송`) → `GET /download` BOM + `text` 헤더 + 원문 1행 (B-EMP-04, **INV-CSV-OUT-003**) — GREEN 통과
+- [x] TC-A-05: `POST /upload` 깨진/빈 CSV → `error`, 기존 세션 건수·원문 불변 (B-UPL-02~03, **INV-SESSION-001**) — GREEN 통과
+- [x] TC-A-06: `POST /analyze` 멀티라인 `첫 줄\n둘째 줄` → HTML에 줄바꿈 포함 원문 1건 (B-IN-05, **INV-TEXT-001**) — GREEN 통과
+- [x] TC-A-07: `POST /filter` `sentiment=알수없음` → `error` 또는 문서화된 fallback + 메시지 (B-FLT-01, PRD C-09) — GREEN 통과
 
 ### Track B — Domain / Logic 테스트 (`tests/entity/`, `tests/control/`)
 
-- [x] TC-B-01: 앵커 문장 분류 → 감정 `부정`, 카테고리 `배송` ≥ 1, `긍정+중립+부정=1` (B-SEN-03, B-CAT-01, **INV-COUNT-002**, TP-01) — RED: 실패, X-09
-- [x] TC-B-02: `오늘은 특별한 일이 없었습니다.` → `중립` (**INV-SENT-001**, B-SEN-01) — RED 통과
-- [x] TC-B-03: `만족스럽지만 별로예요...` → 긍·부 키워드 동시 시 **긍정** (긍→부→중립 순, B-SEN-02) — RED 통과
-- [x] TC-B-04: Analyze 직후 감정 집계 = `Filter(전체,전체)` 재집계 (**INV-SENT-002**, TP-05, X-01) — 04a 통과·04b RED 실패
-- [x] TC-B-05: `Filter(중립,전체)` 결과에 중립 라벨만 (**INV-SENT-003**, X-02) — RED: 실패
-- [x] TC-B-06: N건 혼합 입력 후 `긍정+중립+부정 == len(feedbacks)` (**INV-COUNT-002**, B-SEN-05, X-03) — RED: 실패
-- [x] TC-B-07: `text=""` / trim 후 공백-only → append 없음 (**INV-INPUT-001**, B-IN-01~03) — RED 통과
-- [x] TC-B-08: `UploadCsvUseCase` 빈·깨진 파일 → `error` + Repository 건수·원문 불변 (**INV-SESSION-001**, B-UPL-04) — RED 통과 (2함수)
-- [x] TC-B-09: Filter 스냅샷 행·순서 = Download CSV 본문 (**INV-CSV-OUT-003**, X-04) — RED 통과 (mirror)
-- [x] TC-B-10: 10_000자 장문 입력 → 원문 equality·분류 완료 (**INV-TEXT-001**, B-IN-04) — RED 통과 (`화남` suffix)
-- [x] TC-B-11: `keyword=배송` 필터 + 앵커(main 매칭) → 1건 반환 (TO-BE main+sub, X-05) — RED: 실패
-- [x] TC-B-12: `SENTIMENT_KEYWORDS` 부분 문자열 매칭 단위 검증 (`constants.py` 기준) — RED 통과
+- [x] TC-B-01: 앵커 문장 분류 → 감정 `부정`, 카테고리 `배송` ≥ 1, `긍정+중립+부정=1` (B-SEN-03, B-CAT-01, **INV-COUNT-002**, TP-01) — GREEN 통과 (X-09)
+- [x] TC-B-02: `오늘은 특별한 일이 없었습니다.` → `중립` (**INV-SENT-001**, B-SEN-01) — GREEN 통과
+- [x] TC-B-03: `만족스럽지만 별로예요...` → 긍·부 키워드 동시 시 **긍정** (긍→부→중립 순, B-SEN-02) — GREEN 통과
+- [x] TC-B-04: Analyze 직후 감정 집계 = `Filter(전체,전체)` 재집계 (**INV-SENT-002**, TP-05, X-01) — GREEN 통과 (04a·04b)
+- [x] TC-B-05: `Filter(중립,전체)` 결과에 중립 라벨만 (**INV-SENT-003**, X-02) — GREEN 통과
+- [x] TC-B-06: N건 혼합 입력 후 `긍정+중립+부정 == len(feedbacks)` (**INV-COUNT-002**, B-SEN-05, X-03) — GREEN 통과
+- [x] TC-B-07: `text=""` / trim 후 공백-only → append 없음 (**INV-INPUT-001**, B-IN-01~03) — GREEN 통과
+- [x] TC-B-08: `UploadCsvUseCase` 빈·깨진 파일 → `error` + Repository 건수·원문 불변 (**INV-SESSION-001**, B-UPL-04) — GREEN 통과 (2함수)
+- [x] TC-B-09: Filter 스냅샷 행·순서 = Download CSV 본문 (**INV-CSV-OUT-003**, X-04) — GREEN 통과
+- [x] TC-B-10: 10_000자 장문 입력 → 원문 equality·분류 완료 (**INV-TEXT-001**, B-IN-04) — GREEN 통과
+- [x] TC-B-11: `keyword=배송` 필터 + 앵커(main 매칭) → 1건 반환 (TO-BE main+sub, X-05) — GREEN 통과
+- [x] TC-B-12: `SENTIMENT_KEYWORDS` 부분 문자열 매칭 단위 검증 (`constants.py` 기준) — GREEN 통과
 
 ### 커버리지 목표 (GREEN 단계 전 RED 골격)
 
 - [x] Entity + Control: **≥ 90%** — `pytest --cov=entity --cov=control tests/` (**100%**, `test_coverage_g1.py` 포함)
 - [x] Boundary (`app.py`): **≥ 85%** — `pytest --cov=app tests/boundary/` (**100%**, `test_coverage_boundary.py` 포함)
-- [x] 회귀 게이트: `pytest -v tests/` **0 failed** (RR-5) — **47 passed** (2026-05-22)
+- [x] 회귀 게이트: `pytest -v tests/` **0 failed** (RR-5) — **52 passed** (2026-05-22, Golden 5건 포함)
 
 ### 결함 목록 연결
 
-- [x] [`doc/defect_list.md`](doc/defect_list.md) 생성 및 RED 중 발견 결함 기록 (재현: **X-01**, **X-02**, **X-09**; open: X-03~X-08)
-- [ ] 앵커 `화가` vs `화남` 키워드 정합(X-09) — 계약·키워드·테스트 중 한 축으로 팀 합의 (**RR-1**, `defect_list.md` §6 **합의 대기**)
-- [ ] 모든 결함 **GREEN** 수정 후 전체 pytest·INV-SENT-002/003·INV-COUNT-002 회귀 통과 확인
+- [x] [`doc/defect_list.md`](doc/defect_list.md) 생성 및 RED 중 발견 결함 기록 (재현: **X-01**, **X-02**, **X-09**)
+- [x] 앵커 `화가` vs `화남` 키워드 정합(X-09) — **RR-1 (B)** `SENTIMENT_KEYWORDS`에 `화가` 추가 · README 앵커 문장 유지
+- [x] 결함 **X-01·X-02·X-09** GREEN 수정 후 pytest·**INV-SENT-002/003·INV-COUNT-002** 회귀 통과 (52/52)
+
+---
+
+## Golden Master 회귀 안전장치
+
+> **Approval / Golden Master** — HTTP·HTML·CSV 계약 고정 (`stdout`·`redirect_stdout` 금지).  
+> 기준: [`src/python/tests/golden/`](src/python/tests/golden/) · 실행: `tests/boundary/test_golden_master.py`  
+> **전제:** 레거시 RED 출력을 golden으로 고정하지 않음. **GREEN baseline** + **RR-1(X-09, 앵커 부정)** 반영 후 기준 승인.
+
+### 기준 파일·도구 (`src/python/tests/golden/`)
+
+- [x] `feedback_golden_master.txt` GREEN baseline (S1~S4, `[S1: …]` 섹션) — `tests/golden/`, GM-TC 5/5 PASS
+- [x] `download_filtered_anchor.csv` GREEN baseline (S5, BOM+`text`+앵커 행) — **INV-CSV-OUT-001~003**
+- [x] `normalize.py` — 타임스탬프 `[TIMESTAMP]`, 집계·원문 canonical 추출
+- [x] `helpers.py` — `load_section`, `load_csv_golden`, `assert_golden_*`, `difflib.unified_diff` FAIL
+- [x] `tests/golden/README.md` — 시나리오·재생성·`APPROVE_GOLDEN` 정책
+
+### Golden Master 테스트 (`tests/boundary/test_golden_master.py`)
+
+| GM ID | 시나리오 | 흐름 | INV / 계약 |
+|-------|----------|------|------------|
+| GM-TC-01 | **S1** | `POST /analyze` 앵커 `text=배송이 너무 늦어요. 화가 납니다.` | success, 부정·배송 집계, 원문 1건 (**INV-COUNT-002**, X-09) |
+| GM-TC-02 | **S2** | `POST /analyze` `text=배송이 빨라서 좋아요` | 긍정·배송 집계 (권장) |
+| GM-TC-03 | **S3** | 앵커 적재 후 `POST /analyze` `text=   ` | **INV-INPUT-001** |
+| GM-TC-04 | **S4** | 0건 `POST /filter` | **INV-EMPTY-001** |
+| GM-TC-05 | **S5** | S1 → `POST /filter`(부정,배송) → `GET /download` | **INV-CSV-OUT-003** |
+
+- [x] GM-TC-01: S1 앵커 analyze — `assert_golden_text` vs `[S1: SCN-A anchor POST /analyze]`
+- [x] GM-TC-02: S2 긍정·배송 analyze
+- [x] GM-TC-03: S3 공백-only 건수·원문 불변
+- [x] GM-TC-04: S4 0건 filter `warning`
+- [x] GM-TC-05: S5 CSV 바이트 비교 (`load_csv_golden` / `assert_golden_csv`)
+
+### 회귀 실행·승인 (RR-5 보조)
+
+```bash
+cd src/python
+pytest -v tests/boundary/test_golden_master.py
+pytest -v tests/    # 전체 회귀에 포함 (현재 52건+)
+```
+
+| 단계 | 명령 | 비고 |
+|------|------|------|
+| enforce | `pytest -v tests/boundary/test_golden_master.py` | 기준 있을 때 `actual == expected` |
+| 1회 승인 | `APPROVE_GOLDEN=1 pytest …` (PowerShell: `$env:APPROVE_GOLDEN="1"`) | 기준 없음/불일치 시 저장 후 **skip** — baseline 확정 후 계약 변경 시에만 |
+
+- [x] RR-1(X-09) 앵커 부정·`화가` 키워드 README/계약 정합 — Gherkin 선행 갱신은 M2 추적
+- [x] Golden pytest 5건 (`test_golden_master.py`) — Approval 회귀 포함
+- [x] Golden baseline `tests/golden/` 커밋·`regenerate.py` 운영 — 계약 변경 시 diff 리뷰 (**RR-1**)
 
 ---
 
@@ -620,13 +670,13 @@ MIT License — 자유 이용·수정·배포 가능. 상세 전문은 저장소
 
 ### 🔴 필수 (Must-Have) — v1.0 차단 항목 (M1)
 
-- [ ] 피드백 입력 검증 (trim, 공백-only 미추가, **멀티라인 1건**) | ST-01, F-01 | INV-INPUT-001, INV-TEXT-001
-- [ ] SentimentClassifier 단일 허브 (긍정→부정→중립, Analyze=Filter 동일) | ST-02 | INV-SENT-002, pytest entity
-- [ ] 중립 감정 필터 ("중립" 선택 시 중립만 반환) | ST-02 | INV-SENT-003, text_analyzer/filters 이중 규칙 제거
-- [ ] 수동·CSV 피드백 수집 (UTF-8 BOM, 헤더 text, 빈 행 스킵) | ST-01 | 업로드·파싱 오류 시 세션 목록 불변
-- [ ] 감정·카테고리 집계 (긍정+중립+부정 합=대상 건수) | ST-03 | INV-COUNT-002
-- [ ] 필터·다운로드 계약 (POST /filter, GET /download, BOM+text) | ST-04 | INV-CSV-OUT-003, 스냅샷 행·순서 일치
-- [ ] 피드백 원문 보존 (표·export 입력 문자열 그대로) | ST-04 | Gherkin 원문 보존 시나리오 통과
+- [x] 피드백 입력 검증 (trim, 공백-only 미추가, **멀티라인 1건**) | ST-01, F-01 | INV-INPUT-001, INV-TEXT-001 — TC-A-02·06, TC-B-07
+- [x] SentimentClassifier 단일 허브 (긍정→부정→중립, Analyze=Filter 동일) | ST-02 | INV-SENT-002 — `entity/sentiment_classifier.py`, `filters._label_sentiment`, TC-B-04
+- [x] 중립 감정 필터 ("중립" 선택 시 중립만 반환) | ST-02 | INV-SENT-003 — TC-B-05
+- [x] 수동·CSV 피드백 수집 (UTF-8 BOM, 헤더 text, 빈 행 스킵) | ST-01 | INV-SESSION-001 — TC-A-05, TC-B-08, `control/upload_csv.py`
+- [x] 감정·카테고리 집계 (긍정+중립+부정 합=대상 건수) | ST-03 | INV-COUNT-002 — TC-B-01·06
+- [x] 필터·다운로드 계약 (POST /filter, GET /download, BOM+text) | ST-04 | INV-CSV-OUT-003 — TC-A-04, TC-B-09, GM-TC-05
+- [x] 피드백 원문 보존 (표·export 입력 문자열 그대로) | ST-04 | TC-B-10, TC-A-06, `render_page` 원문
 
 ### 🟡 권장 (Should-Have) — M2
 
@@ -647,8 +697,8 @@ MIT License — 자유 이용·수정·배포 가능. 상세 전문은 저장소
 ### 🔵 기술 부채 — M2~M4 (동작 변경 시 RED부터 재시작)
 
 - [ ] app.py render_page·라우트 God Function 분리 [M2] | Presenter/UseCase | Boundary만 HTTP·HTML
-- [ ] text_analyzer·filters `_contains_any`·S_KEYWORDS 중복 제거 [M2] | SentimentClassifier 단일 | INV-SENT-002/003 재도입 금지
-- [ ] constants vs filters 이중 감정·키워드 규칙 [M2] | 단일 KeywordRule 소스 |
+- [ ] text_analyzer·filters `_contains_any`·`S_KEYWORDS` 잔존 제거 [M2] | 감정 경로 GREEN 단일화 완료 · dict 정리 남음 |
+- [ ] constants vs filters 이중 감정·키워드 규칙 [M2] | 카테고리·필터 main+sub GREEN · KeywordRule 단일 소스는 M2 |
 - [ ] fil_data·global_sent·global_kw 전역 상태 [M2] | Port Store/Repository |
 - [ ] file_handler.py Lava Flow [M4] | 제거 또는 ExportFiltered Port |
 - [ ] 네이밍 fil/sent/kw/fil_data [M4] | 도메인 용어 rename | 미션4
@@ -660,18 +710,21 @@ MIT License — 자유 이용·수정·배포 가능. 상세 전문은 저장소
 - [x] 결함 목록 [`doc/defect_list.md`](doc/defect_list.md) | 2026-05-22 | X-01, X-02, X-09 재현
 - [x] TO-BE 스켈레톤 `entity/`, `control/` + `tests/tobe/` | 2026-05-22 | GREEN 대상 STUB·RED 13건
 - [x] RED 부분 통과 (레거시·계약 일치 구간) | 2026-05-22 | **INV-INPUT-001**, **INV-SESSION-001**, **INV-EMPTY-001**, **INV-SENT-001**(TC-B-02), TC-B-03·07·08·09·10·12
+- [x] GREEN M1 (TC-A/B·tobe·Golden) | 2026-05-22 | **52 passed**, X-01·X-02·X-09 수정, §7.1 핵심 INV
+- [x] Golden Master baseline·GM-TC-01~05 | 2026-05-22 | `tests/golden/`, `test_golden_master.py`
+- [x] PRD G-1 커버리지 entity·control ≥90% | 2026-05-22 | **100%** (`test_coverage_g1.py`, `test_coverage_boundary.py`)
 
 <!-- [x] 항목 | 완료일 | 통과 INV/pytest/Gherkin — 🔴 Must-Have·M2는 GREEN·§7.1 전체 통과 후 [x] -->
 
 ### 📋 회귀 방지 체크리스트
 
-- [ ] INV-SENT-002 · INV-SENT-003 · INV-COUNT-002
-- [x] INV-CSV-OUT-003 (TC-B-09 RED 통과; TC-A-04는 경계 RED 실패)
-- [x] INV-INPUT-001 · INV-SESSION-001 · INV-EMPTY-001 (TC-A-02·03·05, TC-B-07·08 RED 통과)
-- [ ] INV-TEXT-001 (TC-B-10 통과; TC-A-06 멀티라인 HTML RED 실패)
-- [x] PRD §7.1 ↔ Gherkin ↔ README INV 용어 동일 (**RR-1**) — 문서·`tests/support/contract.py` 정합 (구현 미완)
-- [ ] RR-3 이중 감정表 · RR-4 전역/Session 재도입 없음 — 레거시 AS-IS 유지 중
-- [ ] RR-5 전체 pytest 0 실패 — RED 스냅샷 22 failed / 12 passed
+- [x] INV-SENT-002 · INV-SENT-003 · INV-COUNT-002 — TC-B-04·05·06, TC-B-01
+- [x] INV-CSV-OUT-003 — TC-A-04, TC-B-09, GM-TC-05
+- [x] INV-INPUT-001 · INV-SESSION-001 · INV-EMPTY-001 — TC-A-02·03·05, TC-B-07·08
+- [x] INV-TEXT-001 — TC-B-10, TC-A-06
+- [x] PRD §7.1 ↔ Gherkin ↔ README INV 용어 동일 (**RR-1**) — X-09 **(B)** `화가`; Gherkin 본문 선행 갱신은 M2
+- [ ] RR-3 `S_KEYWORDS` 잔존 · RR-4 `fil_data`/Session 전역 — M2 REFACTOR (동작은 GREEN 통과)
+- [x] RR-5 전체 pytest 0 실패 — **52 passed** / 0 failed (2026-05-22)
 - [x] Cursor AI_퀴즈 - 문제.docx 미반영 (**NG-2**)
 
 ### 🗓️ 마일스톤
