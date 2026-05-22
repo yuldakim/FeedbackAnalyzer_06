@@ -79,7 +79,7 @@ def test_post_filter_exception_returns_error_page(client):
     """Filter route exception → error page (no uncaught 500)."""
     client.post("/analyze", data={"text": ANCHOR_TEXT})
     with patch(
-        "app.filter_feedbacks",
+        "app.FilterFeedbacksUseCase.execute",
         side_effect=RuntimeError("filter failure"),
     ):
         response = client.post(

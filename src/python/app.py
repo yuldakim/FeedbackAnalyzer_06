@@ -15,6 +15,8 @@ from infrastructure import wiring
 from logger import Logger
 from control.analyze_feedback import AnalyzeFeedbackUseCase
 from control.upload_csv import UploadCsvUseCase
+from control.filter_feedbacks import FilterFeedbacksUseCase
+from control.download_filtered import DownloadFilteredUseCase
 from control.dto import AnalysisViewModel
 
 app = Flask(__name__)
@@ -29,12 +31,17 @@ def _current_timestamp() -> str:
 def _render_vm(vm: AnalysisViewModel, feedbacks: list | None = None) -> str:
     if feedbacks is None:
         feedbacks = wiring.feedback_repository.all()
+    sentiment_results = vm.sentiment_results
+    keyword_results = vm.keyword_results
+    if vm.warning or vm.error:
+        sentiment_results = {}
+        keyword_results = {}
     return render_page(
         success=vm.success or "",
         warning=vm.warning or "",
         error=vm.error or "",
-        sentiment_results=vm.sentiment_results,
-        keyword_results=vm.keyword_results,
+        sentiment_results=sentiment_results,
+        keyword_results=keyword_results,
         feedbacks=feedbacks,
     )
 
@@ -225,35 +232,23 @@ def upload():
 @app.route("/filter", methods=["POST"])
 def filter_route():
     try:
-        feedbacks = Session.get_current_feedbacks()
-        sentiment = request.form.get("sentiment", "전체")
-        keyword = request.form.get("keyword", "전체")
-
-        allowed_sentiments = {"전체", "긍정", "중립", "부정"}
-        if sentiment not in allowed_sentiments:
-            return render_page(
-                error=f"지원하지 않는 감정 필터입니다: {escape(sentiment)}",
-                feedbacks=feedbacks,
-            )
-
-        if feedbacks:
-            filtered = filter_feedbacks(feedbacks, sentiment, keyword)
-            if filtered:
-                wiring.filtered_store.save(filtered)
-                sentiment_results = text_analyzer.sent(filtered)
-                keyword_results = text_analyzer.kw(filtered)
-                Logger.log_info(f"필터링 결과: {len(filtered)}개의 피드백")
-                return render_page(
-                    sentiment_results=sentiment_results,
-                    keyword_results=keyword_results,
-                    feedbacks=filtered,
-                )
+        vm = FilterFeedbacksUseCase(
+            wiring.feedback_repository, wiring.filtered_store
+        ).execute(
+            request.form.get("sentiment", "전체"),
+            request.form.get("keyword", "전체"),
+        )
+        if vm.error:
+            return _render_vm(vm)
+        if vm.warning:
+            if vm.warning == "필터링 결과가 없습니다.":
+                Logger.log_warning(vm.warning)
             else:
-                Logger.log_warning("필터링 결과가 없습니다.")
-                return render_page(warning="필터링 결과가 없습니다.")
-        else:
-            Logger.log_warning("분석할 피드백이 없습니다.")
-            return render_page(warning="분석할 피드백이 없습니다.")
+                Logger.log_warning(vm.warning)
+            return _render_vm(vm)
+        filtered = wiring.filtered_store.load()
+        Logger.log_info(f"필터링 결과: {len(filtered)}개의 피드백")
+        return _render_vm(vm, feedbacks=filtered)
     except Exception as e:
         Logger.log_error(f"오류 발생: {e}")
         return render_page(error="처리 중 오류가 발생했습니다.")
@@ -261,14 +256,9 @@ def filter_route():
 
 @app.route("/download", methods=["GET"])
 def download():
-    output = io.StringIO()
-    output.write("\ufeff")  # UTF-8 BOM
-    output.write("text\n")
-    for fb in wiring.filtered_store.load():
-        output.write(fb.text + "\n")
-
+    vm = DownloadFilteredUseCase(wiring.filtered_store).execute()
     return Response(
-        output.getvalue(),
+        vm.body,
         mimetype="text/csv; charset=UTF-8",
         headers={"Content-Disposition": "attachment; filename=filtered_feedback.csv"},
     )
